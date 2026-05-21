@@ -1,3 +1,5 @@
+"use client";
+
 import {
   ArrowRight,
   Check,
@@ -10,8 +12,36 @@ import {
   UserRound,
 } from "lucide-react";
 import Link from "next/link";
+import { useState, type ChangeEvent, type FormEvent } from "react";
+import { trpc } from "~/trpc/client";
 
 export default function SignUpPage() {
+
+  const { mutateAsync : createUserWithEmailAndPasswordAsync } = trpc.auth.createUserWithEmailAndPassword.useMutation();
+
+  const [formValues, setFormValues] = useState({
+    name: "",
+    email: "",
+    password: "",
+  });
+
+  const handleChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = event.target;
+
+    setFormValues((currentValues) => ({
+      ...currentValues,
+      [name]: value,
+    }));
+  };
+
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    // console.log(formValues);
+    const { id } = await createUserWithEmailAndPasswordAsync({ email: formValues.email, fullName: formValues.name, password: formValues.password });
+    // console.log(`user create a account with id: ${id}`);
+  };
+
   return (
     <AuthCard>
       <div className="mb-6">
@@ -27,15 +57,18 @@ export default function SignUpPage() {
 
       <Divider />
 
-      <form className="space-y-3.5">
+      <form className="space-y-3.5" onSubmit={handleSubmit}>
         <label className="block">
           <span className="mb-2 block text-sm font-semibold text-slate-300">Name</span>
           <span className="relative block">
             <UserRound className="absolute left-4 top-1/2 size-4 -translate-y-1/2 text-slate-500" />
             <input
               className="h-11 w-full rounded-lg border border-white/12 bg-black/25 pl-11 pr-4 text-sm text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] outline-none transition placeholder:text-slate-600 focus:border-[#EC4899]/55 focus:ring-4 focus:ring-[#EC4899]/10 sm:h-12"
+              name="name"
+              onChange={handleChange}
               placeholder="Your name"
               type="text"
+              value={formValues.name}
             />
           </span>
         </label>
@@ -46,8 +79,11 @@ export default function SignUpPage() {
             <Mail className="absolute left-4 top-1/2 size-4 -translate-y-1/2 text-slate-500" />
             <input
               className="h-11 w-full rounded-lg border border-white/12 bg-black/25 pl-11 pr-4 text-sm text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] outline-none transition placeholder:text-slate-600 focus:border-[#22D3EE]/55 focus:ring-4 focus:ring-[#22D3EE]/10 sm:h-12"
+              name="email"
+              onChange={handleChange}
               placeholder="you@company.com"
               type="email"
+              value={formValues.email}
             />
           </span>
         </label>
@@ -58,15 +94,18 @@ export default function SignUpPage() {
             <LockKeyhole className="absolute left-4 top-1/2 size-4 -translate-y-1/2 text-slate-500" />
             <input
               className="h-11 w-full rounded-lg border border-white/12 bg-black/25 pl-11 pr-4 text-sm text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] outline-none transition placeholder:text-slate-600 focus:border-[#8B5CF6]/60 focus:ring-4 focus:ring-[#8B5CF6]/12 sm:h-12"
+              name="password"
+              onChange={handleChange}
               placeholder="Create a password"
               type="password"
+              value={formValues.password}
             />
           </span>
         </label>
 
         <button
           className="group flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-white font-black text-[#050816] shadow-[0_0_42px_rgba(139,92,246,0.46)] transition hover:scale-[1.01] hover:shadow-[0_0_64px_rgba(34,211,238,0.5)] sm:h-12"
-          type="button"
+          type="submit"
         >
           Create account
           <ArrowRight className="size-4 transition group-hover:translate-x-1" />
