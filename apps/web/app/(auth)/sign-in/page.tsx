@@ -1,3 +1,5 @@
+"use client";
+
 import {
   ArrowRight,
   Check,
@@ -9,8 +11,29 @@ import {
   Sparkles,
 } from "lucide-react";
 import Link from "next/link";
+import { useForm } from "react-hook-form";
+import { useSignIn } from "~/hooks/api/auth";
+
+type SignInFormValues = {
+  email: string;
+  password: string;
+};
 
 export default function SignInPage() {
+  const { signInWithEmailAndPasswordAsync } = useSignIn();
+  const { register, handleSubmit } = useForm<SignInFormValues>({
+    defaultValues: {
+      email: "",
+      password: "",
+    },
+  });
+
+  const onSubmit = (values: SignInFormValues) => {
+    const { id } = signInWithEmailAndPasswordAsync(values);
+    // console.log(values);
+    
+  };
+
   return (
     <AuthCard>
       <div className="mb-6">
@@ -26,7 +49,7 @@ export default function SignInPage() {
 
       <Divider />
 
-      <form className="space-y-3.5">
+      <form className="space-y-3.5" onSubmit={handleSubmit(onSubmit)}>
         <label className="block">
           <span className="mb-2 block text-sm font-semibold text-slate-300">Email</span>
           <span className="relative block">
@@ -35,6 +58,7 @@ export default function SignInPage() {
               className="h-11 w-full rounded-lg border border-white/12 bg-black/25 pl-11 pr-4 text-sm text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] outline-none transition placeholder:text-slate-600 focus:border-[#22D3EE]/55 focus:ring-4 focus:ring-[#22D3EE]/10 sm:h-12"
               placeholder="you@company.com"
               type="email"
+              {...register("email")}
             />
           </span>
         </label>
@@ -55,13 +79,14 @@ export default function SignInPage() {
               className="h-11 w-full rounded-lg border border-white/12 bg-black/25 pl-11 pr-4 text-sm text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] outline-none transition placeholder:text-slate-600 focus:border-[#8B5CF6]/60 focus:ring-4 focus:ring-[#8B5CF6]/12 sm:h-12"
               placeholder="Enter your password"
               type="password"
+              {...register("password")}
             />
           </span>
         </label>
 
         <button
           className="group flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-white font-black text-[#050816] shadow-[0_0_42px_rgba(139,92,246,0.46)] transition hover:scale-[1.01] hover:shadow-[0_0_64px_rgba(34,211,238,0.5)] sm:h-12"
-          type="button"
+          type="submit"
         >
           Login
           <ArrowRight className="size-4 transition group-hover:translate-x-1" />

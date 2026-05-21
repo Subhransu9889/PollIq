@@ -1,7 +1,7 @@
 import {db, eq} from "@repo/database";
 import {usersTable} from "@repo/database/models/user"
 import { randomBytes, createHmac } from "node:crypto";
-import { createUserWithEmailAndPasswordInput, type CreateUserWithEmailAndPasswordType, generateUserTokenPayload, type GenerateUserTokenPayloadType, verifyUserWithEmailAndPasswordInput, type VerifyUserWithEmailAndPasswordType} from "./model";
+import { createUserWithEmailAndPasswordInput, type CreateUserWithEmailAndPasswordType, generateUserTokenPayload, type GenerateUserTokenPayloadType, type SignInUserWithEmailAndPasswordType, signInUserWithEmailAndPasswordInput } from "./model";
 import * as JWT from "jsonwebtoken";
 import { env } from "../env";
 
@@ -19,6 +19,10 @@ class UserService {
         return { token };
     }
 
+    private async createHash(password: string, salt: string){
+        return createHmac("sha256", salt).update(password).digest("hex");
+    }
+
     public async createUserWithEmailAndPassword(payload: CreateUserWithEmailAndPasswordType) {
         const { fullName, email, password } = await createUserWithEmailAndPasswordInput.parseAsync(payload);
 
@@ -30,8 +34,7 @@ class UserService {
 
         //create the user
         const salt = randomBytes(16).toString("hex");
-        const hash = createHmac("sha256", salt).update(password).digest("hex");
-
+        const hash = await this.createHash(password, salt);
         //store the user in the database
         const userInsertResult = await db.insert(usersTable).values({
             fullName,
@@ -56,8 +59,8 @@ class UserService {
         };
     }
 
-    public async verifyUserWithEmailAndPassword(payload: VerifyUserWithEmailAndPasswordType) {
-        const { email, password } = await verifyUserWithEmailAndPasswordInput.parseAsync(payload);
+    public async signInUserWithEmailAndPassword(payload: SignInUserWithEmailAndPasswordType) {
+        const { email, password } = await signInUserWithEmailAndPasswordInput.parseAsync(payload);
 
         //check the user have a account or not
         const existingUserWithEmail = await this.getUserByEmail(email);
@@ -65,17 +68,23 @@ class UserService {
             throw new Error(`No user found with this email ${email}`);
         }
 
-        //verify the password
-        const salt = existingUserWithEmail?.salt;
-        if(salt){
-            const hash = createHmac("sha256", salt).update(password).digest("hex");
-            if(hash !== existingUserWithEmail.password){
-                throw new Error("Invalid password");
-            }
+        //check for the password
+        if(!existingUserWithEmail.password || !existingUserWithEmail.salt){
+            throw new Error("Invalid authentication credentials");
         }
 
+        //verify the password
+        const salt = existingUserWithEmail.salt;
+        if(salt){
+            const hash = await this.createHash(password, salt);
+            if(hash !== existingUserWithEmail.password){
+                throw new Error("Invalid email or password");
+            }
+        }
+        const {token} = await this.generateUserToken({ id: existingUserWithEmail.id })
         return {
             id: existingUserWithEmail.id,
+            token,
         };  
     }
 }

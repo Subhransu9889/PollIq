@@ -13,11 +13,12 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useState, type ChangeEvent, type FormEvent } from "react";
+import { useSignUp } from "~/hooks/api/auth";
 import { trpc } from "~/trpc/client";
 
 export default function SignUpPage() {
 
-  const { mutateAsync : createUserWithEmailAndPasswordAsync } = trpc.auth.createUserWithEmailAndPassword.useMutation();
+  const { createUserWithEmailAndPasswordAsync } = useSignUp();
 
   const [formValues, setFormValues] = useState({
     name: "",

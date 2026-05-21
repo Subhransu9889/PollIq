@@ -6,7 +6,7 @@ export const createUserWithEmailAndPasswordInput = z.object({
     password: z.string().min(8).describe("The password for the user, must be at least 8 characters long"),
 });
 
-export const verifyUserWithEmailAndPasswordInput = z.object({
+export const signInUserWithEmailAndPasswordInput = z.object({
     email: z.email().describe("The email address of the user"),
     password: z.string().min(8).describe("The password for the user, must be at least 8 characters long"),
 });
@@ -16,5 +16,5 @@ export const generateUserTokenPayload = z.object({
 })
 
 export type CreateUserWithEmailAndPasswordType = z.infer<typeof createUserWithEmailAndPasswordInput>;
-export type VerifyUserWithEmailAndPasswordType = z.infer<typeof verifyUserWithEmailAndPasswordInput>;
+export type SignInUserWithEmailAndPasswordType = z.infer<typeof signInUserWithEmailAndPasswordInput>;
 export type GenerateUserTokenPayloadType = z.infer<typeof generateUserTokenPayload>;
