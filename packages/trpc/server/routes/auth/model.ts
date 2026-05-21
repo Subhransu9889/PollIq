@@ -18,3 +18,10 @@ export const signInUserWithEmailAndPasswordInputSchema = z.object({
 export const signInUserWithEmailAndPasswordOutputSchema = z.object({
   id: z.string().describe("The id of the user"),
 });
+
+export const getUserInfoInputSchema = z.undefined();
+export const getUserInfoOutputSchema = z.object({
+  id: z.string().describe("The id of the user"),
+  email: z.string().email().describe("The email address of the user"),
+  fullName: z.string().describe("The full name of the user"),
+});

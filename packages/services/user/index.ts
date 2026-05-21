@@ -23,6 +23,25 @@ class UserService {
         return createHmac("sha256", salt).update(password).digest("hex");
     }
 
+    private async verifyToken(token: string): Promise<GenerateUserTokenPayloadType>{
+        try{
+            const verificactionResult = JWT.verify(token, env.JWT_SECRET) as GenerateUserTokenPayloadType;
+            return verificactionResult;
+        } catch (error) {
+            throw new Error("Invalid token")
+        }
+    }
+
+    private async getUserById(id: string){
+        const user = await db.select({
+            id: usersTable.id,
+            email: usersTable.email,
+            fullName: usersTable.fullName,
+        }).from(usersTable).where(eq(usersTable.id, id)).limit(1);
+        if(!user || user.length === 0) throw new Error("User not found");
+        return user[0];
+    }
+
     public async createUserWithEmailAndPassword(payload: CreateUserWithEmailAndPasswordType) {
         const { fullName, email, password } = await createUserWithEmailAndPasswordInput.parseAsync(payload);
 
@@ -86,6 +105,12 @@ class UserService {
             id: existingUserWithEmail.id,
             token,
         };  
+    }
+
+    public async verifyUserToken(token: string){
+        const { id } = await this.verifyToken(token);
+        const userInfo = await this.getUserById(id);
+        return { ...userInfo }
     }
 }
 

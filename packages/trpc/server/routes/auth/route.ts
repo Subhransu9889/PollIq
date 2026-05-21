@@ -1,9 +1,9 @@
 
 import { userService } from "../../services";
 import { publicProcedure, router } from "../../trpc";
-import { setAuthenticationCookie } from "../../utils/cookie";
+import { getAuthenticationCookie, setAuthenticationCookie } from "../../utils/cookie";
 import { generatePath } from "../../utils/path-generator";
-import { createUserWithEmailAndPasswordInputSchema, createUserWithEmailAndPasswordOutputSchema, signInUserWithEmailAndPasswordInputSchema, signInUserWithEmailAndPasswordOutputSchema } from "./model";
+import { createUserWithEmailAndPasswordInputSchema, createUserWithEmailAndPasswordOutputSchema, getUserInfoOutputSchema, signInUserWithEmailAndPasswordInputSchema, signInUserWithEmailAndPasswordOutputSchema, getUserInfoInputSchema } from "./model";
 
 const TAGS = ["Authentication"];
 const getPath = generatePath("/authentication");
@@ -30,5 +30,19 @@ export const authRouter = router({
     const { id, token } = await userService.signInUserWithEmailAndPassword(input);
     setAuthenticationCookie(ctx, token);
     return { id };
+  }),
+
+  getUserInfo: publicProcedure.meta({openapi: {
+    method: "GET",
+    path: getPath("/getUserInfo"),
+    tags: TAGS,
+    summary: "Get user info",
+  }}).input(getUserInfoInputSchema).output(getUserInfoOutputSchema).query(async({ctx}) => {
+    const {userToken} = getAuthenticationCookie(ctx);
+    if(!userToken){
+      throw new Error("Unauthorized");
+    }
+    const {id, email, fullName} = await userService.verifyUserToken(userToken);
+    return { id, email, fullName };
   }),
 });
