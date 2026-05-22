@@ -190,7 +190,7 @@ export default function DashboardPage() {
             <div className="flex items-center gap-2">
               <button className="hidden h-10 items-center gap-2 rounded-lg border border-white/10 bg-black/25 px-3 text-sm font-bold text-slate-300 transition hover:border-cyan-300/40 hover:text-white md:flex">
                 <Command className="size-4" />
-                <span>⌘ K</span>
+                <span>K</span>
               </button>
               <Button className="bg-white text-[#050816] hover:bg-cyan-100">
                 <FilePlus2 className="size-4" />
