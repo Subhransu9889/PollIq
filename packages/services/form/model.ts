@@ -58,10 +58,8 @@ export const createFormFieldInput = z.object({
   config: fieldConfigSchema,
 });
 
-export const updateFormFieldInput = createFormFieldInput.extend({
+export const updateFormFieldInput = createFormFieldInput.partial().extend({
   id: z.string().uuid(),
-}).partial().refine((value) => typeof value.id === "string", {
-  message: "Field id is required",
 });
 
 export const createFormInput = z.object({
