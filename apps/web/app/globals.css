@@ -348,6 +348,91 @@
   }
 }
 
+@keyframes cyber-pan {
+  to {
+    background-position: 72px 72px;
+  }
+}
+
+@keyframes particle-drift {
+  from {
+    transform: translate3d(0, 0, 0);
+  }
+  to {
+    transform: translate3d(-54px, -80px, 0);
+  }
+}
+
+@keyframes sakura-fall {
+  from {
+    transform: translate3d(0, -18%, 0) rotate(0deg);
+  }
+  to {
+    transform: translate3d(-34px, 32%, 0) rotate(42deg);
+  }
+}
+
+@keyframes matrix-drop {
+  from {
+    transform: translateY(-45%);
+  }
+  to {
+    transform: translateY(45%);
+  }
+}
+
+@keyframes star-parallax {
+  from {
+    background-position:
+      0 0,
+      34px 44px;
+  }
+  to {
+    background-position:
+      -90px 160px,
+      120px 260px;
+  }
+}
+
+@keyframes radar-sweep {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes gaming-border {
+  0%,
+  100% {
+    box-shadow:
+      0 0 22px rgba(239, 68, 68, 0.24),
+      inset 0 0 18px rgba(16, 185, 129, 0.12);
+  }
+  50% {
+    box-shadow:
+      0 0 34px rgba(245, 158, 11, 0.32),
+      inset 0 0 22px rgba(16, 185, 129, 0.2);
+  }
+}
+
+@keyframes liquid-sheen {
+  0% {
+    transform: translateX(-130%) rotate(12deg);
+  }
+  100% {
+    transform: translateX(130%) rotate(12deg);
+  }
+}
+
+@keyframes xp-glint {
+  0%,
+  100% {
+    filter: saturate(1);
+  }
+  50% {
+    filter: saturate(1.25) brightness(1.06);
+  }
+}
+
 .formverse-mesh {
   background:
     radial-gradient(circle at 18% 24%, rgba(139, 92, 246, 0.42), transparent 28%),
@@ -656,6 +741,247 @@
 
 .analytics-ping .size-2 {
   animation: analytics-pulse 1.8s ease-in-out infinite;
+}
+
+.theme-preview {
+  --mouse-x: 50%;
+  --mouse-y: 30%;
+  border-color: rgba(255, 255, 255, 0.14);
+  color: white;
+  isolation: isolate;
+}
+
+.theme-light {
+  background: radial-gradient(circle at var(--mouse-x) var(--mouse-y), rgba(255, 255, 255, 0.22), transparent 28%);
+  mix-blend-mode: screen;
+  opacity: 0.75;
+  transition: opacity 160ms ease;
+}
+
+.theme-input,
+.theme-key {
+  border-color: rgba(255, 255, 255, 0.18);
+  background: rgba(0, 0, 0, 0.2);
+  backdrop-filter: blur(16px);
+}
+
+.theme-cyberpunk {
+  font-family: "Space Grotesk", "Orbitron", var(--font-geist-sans), sans-serif;
+  border-color: rgba(255, 0, 255, 0.35);
+  box-shadow:
+    0 0 70px rgba(255, 0, 255, 0.16),
+    inset 0 0 38px rgba(0, 229, 255, 0.12);
+}
+
+.theme-cyberpunk .theme-input {
+  border-color: rgba(255, 0, 255, 0.58);
+  background: rgba(11, 15, 26, 0.52);
+  box-shadow: 0 0 24px rgba(255, 0, 255, 0.18);
+}
+
+.theme-cyberpunk .theme-title,
+.theme-cyberpunk .theme-badge {
+  text-shadow:
+    0 0 18px rgba(0, 229, 255, 0.44),
+    0 0 24px rgba(255, 0, 255, 0.26);
+}
+
+.cyber-grid {
+  background-image:
+    linear-gradient(rgba(0, 229, 255, 0.22) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 0, 255, 0.16) 1px, transparent 1px);
+  background-size: 36px 36px;
+  mask-image: linear-gradient(to bottom, transparent, black 20%, transparent 90%);
+  animation: cyber-pan 5s linear infinite;
+}
+
+.cyber-particles,
+.energy-particles {
+  background-image:
+    radial-gradient(circle, rgba(255, 255, 255, 0.9) 0 1px, transparent 1px),
+    radial-gradient(circle, rgba(0, 229, 255, 0.9) 0 1px, transparent 1px),
+    radial-gradient(circle, rgba(255, 0, 255, 0.75) 0 1px, transparent 1px);
+  background-size:
+    90px 90px,
+    140px 140px,
+    210px 210px;
+  opacity: 0.36;
+  animation: particle-drift 8s linear infinite;
+}
+
+.theme-sakura {
+  color: #4a1232;
+  font-family: "Poppins", "Satoshi", var(--font-geist-sans), sans-serif;
+  border-color: rgba(249, 168, 212, 0.72);
+}
+
+.theme-sakura .theme-badge,
+.theme-sakura .theme-input,
+.theme-sakura .theme-key {
+  color: #831843;
+  border-color: rgba(249, 168, 212, 0.62);
+  background: rgba(255, 255, 255, 0.42);
+  box-shadow: 0 18px 50px rgba(249, 168, 212, 0.28);
+}
+
+.sakura-clouds {
+  background:
+    radial-gradient(circle at 18% 26%, rgba(255, 255, 255, 0.68), transparent 26%),
+    radial-gradient(circle at 78% 18%, rgba(253, 242, 248, 0.8), transparent 28%),
+    radial-gradient(circle at 64% 78%, rgba(249, 168, 212, 0.34), transparent 32%);
+  filter: blur(2px);
+}
+
+.sakura-petals,
+.theme-petals {
+  background-image:
+    radial-gradient(ellipse at center, rgba(249, 168, 212, 0.96) 0 2px, transparent 3px),
+    radial-gradient(ellipse at center, rgba(192, 132, 252, 0.72) 0 2px, transparent 3px);
+  background-position:
+    18px 20px,
+    78px 54px;
+  background-size:
+    86px 86px,
+    120px 120px;
+  opacity: 0.7;
+  animation: sakura-fall 6.8s linear infinite;
+}
+
+.theme-hacker {
+  font-family: "JetBrains Mono", var(--font-geist-mono), monospace;
+  border-color: rgba(0, 255, 102, 0.42);
+  text-shadow: 0 0 10px rgba(0, 255, 102, 0.26);
+}
+
+.matrix-rain::before {
+  content: "01010110  sudo init  10110100  /root/polliq  00110101  chmod +x";
+  position: absolute;
+  inset: -50% 0;
+  color: rgba(0, 255, 102, 0.16);
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 13px;
+  letter-spacing: 8px;
+  line-height: 1.8;
+  word-break: break-all;
+  animation: matrix-drop 5s linear infinite;
+}
+
+.crt-lines {
+  background: repeating-linear-gradient(to bottom, rgba(255, 255, 255, 0.06) 0 1px, transparent 1px 4px);
+  mix-blend-mode: overlay;
+}
+
+.theme-space {
+  font-family: "Orbitron", var(--font-geist-sans), sans-serif;
+  border-color: rgba(56, 189, 248, 0.36);
+}
+
+.space-stars {
+  background-image:
+    radial-gradient(circle, rgba(255, 255, 255, 0.94) 0 1px, transparent 1px),
+    radial-gradient(circle, rgba(125, 211, 252, 0.74) 0 1px, transparent 1px);
+  background-size:
+    74px 74px,
+    132px 132px;
+  animation: star-parallax 18s linear infinite;
+}
+
+.radar-ring {
+  border-radius: 999px;
+  background: conic-gradient(from 0deg, rgba(56, 189, 248, 0.36), transparent 34%, transparent);
+  animation: radar-sweep 6s linear infinite;
+  mask-image: radial-gradient(circle, transparent 42%, black 43%, black 48%, transparent 49%);
+}
+
+.theme-gaming {
+  font-family: "Rajdhani", "Exo 2", var(--font-geist-sans), sans-serif;
+  border-color: rgba(245, 158, 11, 0.38);
+  animation: gaming-border 2.8s ease-in-out infinite;
+}
+
+.gaming-hud {
+  background-image:
+    linear-gradient(90deg, rgba(239, 68, 68, 0.24), transparent 24%, transparent 74%, rgba(16, 185, 129, 0.2)),
+    linear-gradient(rgba(245, 158, 11, 0.16) 1px, transparent 1px);
+  background-size:
+    100% 100%,
+    100% 28px;
+}
+
+.theme-liquid {
+  color: #0f172a;
+  border-color: rgba(255, 255, 255, 0.78);
+}
+
+.theme-liquid .theme-badge,
+.theme-liquid .theme-input,
+.theme-liquid .theme-key {
+  color: #0f172a;
+  border-color: rgba(255, 255, 255, 0.76);
+  background: rgba(255, 255, 255, 0.36);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.72),
+    0 18px 60px rgba(15, 23, 42, 0.12);
+}
+
+.liquid-reflection::after {
+  content: "";
+  position: absolute;
+  inset: -20% auto -20% -20%;
+  width: 44%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.62), transparent);
+  animation: liquid-sheen 4.2s ease-in-out infinite;
+}
+
+.theme-startup {
+  border-color: rgba(99, 102, 241, 0.36);
+}
+
+.startup-grid {
+  background-image:
+    linear-gradient(rgba(99, 102, 241, 0.1) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(6, 182, 212, 0.1) 1px, transparent 1px);
+  background-size: 54px 54px;
+  mask-image: radial-gradient(circle at 50% 40%, black, transparent 76%);
+}
+
+.theme-xp {
+  color: #08183b;
+  font-family: Tahoma, Verdana, var(--font-geist-sans), sans-serif;
+  border-color: rgba(255, 255, 255, 0.58);
+  animation: xp-glint 4s ease-in-out infinite;
+}
+
+.theme-xp .theme-badge,
+.theme-xp .theme-input,
+.theme-xp .theme-key {
+  color: #08183b;
+  border-color: #0b4bb3;
+  background: linear-gradient(#fdfdfd, #d5e8ff);
+  box-shadow:
+    inset 1px 1px 0 #ffffff,
+    2px 2px 0 rgba(0, 0, 0, 0.28);
+}
+
+.xp-clouds {
+  background:
+    radial-gradient(circle at 24% 22%, rgba(255, 255, 255, 0.84), transparent 12%),
+    radial-gradient(circle at 62% 28%, rgba(255, 255, 255, 0.74), transparent 16%),
+    linear-gradient(to top, rgba(57, 147, 38, 0.72), transparent 42%);
+}
+
+.theme-glass {
+  border-color: rgba(255, 255, 255, 0.16);
+  box-shadow:
+    0 28px 100px rgba(0, 0, 0, 0.38),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12);
+}
+
+.glass-layers {
+  background:
+    radial-gradient(circle at 20% 20%, rgba(45, 212, 191, 0.22), transparent 28%),
+    radial-gradient(circle at 82% 24%, rgba(217, 70, 239, 0.18), transparent 30%),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.1), transparent 42%);
 }
 
 .site-header {

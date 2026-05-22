@@ -39,7 +39,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import type { Dispatch, ReactNode, SetStateAction } from "react";
+import type { CSSProperties, Dispatch, MouseEvent, ReactNode, SetStateAction } from "react";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Badge } from "~/components/ui/badge";
@@ -125,19 +125,120 @@ const fieldTypes = [
 
 const optionFieldTypes = new Set<FieldType>(["SELECT", "MULTI_SELECT"]);
 
+type TemplateCategory = "Trending" | "Anime" | "Cyberpunk" | "Startup" | "Gaming";
+type ThemeKey = "cyberpunk" | "sakura" | "hacker" | "space" | "gaming" | "liquid" | "startup" | "xp" | "glass";
+type ThemeCategory = "All" | "Cyberpunk" | "Anime" | "Hacker" | "Space" | "Gaming" | "Premium" | "Business" | "Retro" | "Default";
+
+type TemplateCard = {
+  category: TemplateCategory;
+  title: string;
+  description: string;
+  gradient: string;
+  stats: string;
+  completion: number;
+  theme: string;
+  fields: Array<Pick<DraftField, "type" | "label" | "placeholder" | "required" | "config"> & { description?: string }>;
+};
+
+type ThemeCard = {
+  key: ThemeKey;
+  category: Exclude<ThemeCategory, "All">;
+  name: string;
+  shortName: string;
+  tone: string;
+  vibe: string;
+  surface: string;
+  accent: string;
+  conversion: string;
+  motion: string;
+  typography: string;
+  button: string;
+};
+
 const themeCollections = [
-  { group: "Anime Themes", name: "Sakura Drift", tone: "Soft motion, petals, creator drops", gradient: "from-pink-400 via-rose-300 to-fuchsia-500" },
-  { group: "Cyberpunk Themes", name: "Neon Relay", tone: "Terminal glow and electric edges", gradient: "from-cyan-300 via-violet-500 to-fuchsia-500" },
-  { group: "Gaming Themes", name: "Loadout Arena", tone: "Tournament signup and player feedback", gradient: "from-violet-500 via-orange-400 to-rose-400" },
-  { group: "Startup Themes", name: "Launch Deck", tone: "Waitlists, discovery, pitch rooms", gradient: "from-teal-300 via-sky-400 to-indigo-500" },
-];
+  { key: "cyberpunk", category: "Cyberpunk", name: "Cyberpunk Neon City", shortName: "Cyberpunk", tone: "Neon city, hacker energy, futuristic nightlife.", vibe: "#0B0F1A / #FF00FF / #00E5FF / #8B5CF6", surface: "from-[#0B0F1A] via-[#1a0b2e] to-[#001f2f]", accent: "Pink / Cyan / Violet", conversion: "+31%", motion: "Grid, holograms, particles", typography: "Space Grotesk + Orbitron", button: "Pink to cyan gradient" },
+  { key: "sakura", category: "Anime", name: "Anime Sakura Dream", shortName: "Sakura", tone: "Dreamy, soft, cinematic anime with falling petals.", vibe: "#FDF2F8 / #F9A8D4 / #C084FC / #FBCFE8", surface: "from-[#FDF2F8] via-[#FBCFE8] to-[#C084FC]", accent: "Pink / Lavender", conversion: "+28%", motion: "Falling sakura petals", typography: "Poppins + Satoshi", button: "Soft rose glass" },
+  { key: "hacker", category: "Hacker", name: "Hacker Terminal", shortName: "Terminal", tone: "Matrix, Linux terminal, typing prompts, CRT grit.", vibe: "#000000 / #00FF66 / #0D1117", surface: "from-black via-[#05140b] to-[#0D1117]", accent: "Phosphor green", conversion: "+26%", motion: "Matrix rain + typing", typography: "JetBrains Mono + Geist Mono", button: "> continue" },
+  { key: "space", category: "Space", name: "Space Mission Control", shortName: "Space", tone: "NASA dashboard, space station UI, planet exploration.", vibe: "#020617 / #38BDF8 / #818CF8 / #E0F2FE", surface: "from-[#020617] via-[#0c1b3b] to-[#111052]", accent: "Sky / Indigo", conversion: "+22%", motion: "Stars, orbit lines, radar", typography: "Geist + Orbitron", button: "Floating mission buttons" },
+  { key: "gaming", category: "Gaming", name: "Gaming Arena RGB", shortName: "Gaming", tone: "Esports dashboard with HUD lines and energy particles.", vibe: "#111827 / #EF4444 / #F59E0B / #10B981", surface: "from-[#111827] via-[#3b1020] to-[#082619]", accent: "Red / Gold / Green", conversion: "+20%", motion: "Animated glowing borders", typography: "Rajdhani + Exo 2", button: "High contrast arena CTA" },
+  { key: "liquid", category: "Premium", name: "Apple Liquid Glass", shortName: "Liquid", tone: "Minimal, luxury, Arc-like glass with reflective motion.", vibe: "White glass / soft gradients", surface: "from-white via-[#dff7ff] to-[#f7e8ff]", accent: "Pearl / Blue / Violet", conversion: "+24%", motion: "Liquid reflection hover", typography: "Geist + Satoshi", button: "Reflective glass pill" },
+  { key: "startup", category: "Business", name: "Startup Pitch Deck", shortName: "Startup", tone: "Linear, Vercel, Framer energy for business forms.", vibe: "#0F172A / #6366F1 / #06B6D4", surface: "from-[#0F172A] via-[#182553] to-[#052f3b]", accent: "Indigo / Cyan", conversion: "+21%", motion: "Clean dashboard glow", typography: "Geist + Inter", button: "Premium SaaS action" },
+  { key: "xp", category: "Retro", name: "Retro Windows XP", shortName: "Windows XP", tone: "Old internet nostalgia with pixel shadows and XP buttons.", vibe: "Bliss blue / grass green / chrome", surface: "from-[#245edb] via-[#3b8cff] to-[#58c241]", accent: "XP blue / Meadow", conversion: "+17%", motion: "CRT blur + desktop shine", typography: "Tahoma + system", button: "Classic XP button" },
+  { key: "glass", category: "Default", name: "Glassmorphic Dark", shortName: "Glass", tone: "Premium futuristic default with layered blur and subtle glow.", vibe: "Dark blur / smooth gradients", surface: "from-[#05070d] via-[#101820] to-[#241039]", accent: "Teal / Fuchsia", conversion: "+23%", motion: "Layered glass glow", typography: "Geist Sans", button: "Clean glass action" },
+] satisfies ThemeCard[];
 
 const templateCards = [
-  ["Anime", "Convention registration with cosplay, panels, and merch interest", "from-pink-400 to-fuchsia-500"],
-  ["Cyberpunk", "Beta access form with persona routing and waitlist urgency", "from-cyan-300 to-violet-500"],
-  ["Startup", "Customer discovery sprint with investor-ready insights", "from-teal-300 to-sky-500"],
-  ["Gaming", "Tournament signup with role selection and team matching", "from-violet-500 to-orange-400"],
-] satisfies Array<[string, string, string]>;
+  {
+    category: "Trending",
+    title: "Creator Drop Waitlist",
+    description: "Launch signup with audience intent, email capture, and hype scoring.",
+    gradient: "from-teal-300 via-sky-400 to-fuchsia-500",
+    stats: "8.4K uses",
+    completion: 82,
+    theme: "Cyberpunk Neon City",
+    fields: [
+      { type: "EMAIL", label: "Where should we send your invite?", placeholder: "name@example.com", required: true },
+      { type: "SELECT", label: "What are you most excited about?", placeholder: "Choose one", required: true, config: { options: [{ label: "Early access", value: "early-access" }, { label: "Community", value: "community" }, { label: "Creator tools", value: "creator-tools" }] } },
+      { type: "RATING", label: "How excited are you?", placeholder: "", required: true, config: { min: 1, max: 5, step: 1 } },
+    ],
+  },
+  {
+    category: "Anime",
+    title: "Anime Convention Form",
+    description: "Cosplay, panels, merch interest, and attendee preferences in one cinematic flow.",
+    gradient: "from-pink-400 via-rose-300 to-fuchsia-500",
+    stats: "5.9K uses",
+    completion: 76,
+    theme: "Anime Sakura Dream",
+    fields: [
+      { type: "TEXT", label: "What name should appear on your badge?", placeholder: "Your display name", required: true },
+      { type: "SELECT", label: "Which panel are you most interested in?", placeholder: "Choose a panel", required: true, config: { options: [{ label: "Voice actors", value: "voice-actors" }, { label: "Cosplay showcase", value: "cosplay" }, { label: "Manga workshop", value: "manga" }] } },
+      { type: "TEXTAREA", label: "What would make the event unforgettable?", placeholder: "Tell us your idea", required: false },
+    ],
+  },
+  {
+    category: "Cyberpunk",
+    title: "Beta Access Application",
+    description: "High-signal beta signup with persona routing and urgency indicators.",
+    gradient: "from-cyan-300 via-violet-500 to-fuchsia-500",
+    stats: "7.1K uses",
+    completion: 88,
+    theme: "Cyberpunk Neon City",
+    fields: [
+      { type: "EMAIL", label: "Enter your access email", placeholder: "operator@domain.com", required: true },
+      { type: "SELECT", label: "What describes you best?", placeholder: "Choose role", required: true, config: { options: [{ label: "Founder", value: "founder" }, { label: "Designer", value: "designer" }, { label: "Engineer", value: "engineer" }] } },
+      { type: "TEXTAREA", label: "What workflow are you trying to upgrade?", placeholder: "Describe your current pain", required: true },
+    ],
+  },
+  {
+    category: "Startup",
+    title: "Customer Discovery Sprint",
+    description: "Interview-ready form for validating pain, budget, urgency, and segments.",
+    gradient: "from-teal-300 via-sky-400 to-indigo-500",
+    stats: "3.8K uses",
+    completion: 71,
+    theme: "Startup Pitch Deck",
+    fields: [
+      { type: "TEXT", label: "What job are you trying to get done?", placeholder: "Describe the job", required: true },
+      { type: "RATING", label: "How painful is this today?", placeholder: "", required: true, config: { min: 1, max: 10, step: 1 } },
+      { type: "EMAIL", label: "Can we follow up?", placeholder: "name@company.com", required: false },
+    ],
+  },
+  {
+    category: "Gaming",
+    title: "Tournament Signup",
+    description: "Player registration with roles, platform, team preference, and skill rating.",
+    gradient: "from-violet-500 via-orange-400 to-rose-400",
+    stats: "4.6K uses",
+    completion: 79,
+    theme: "Gaming Arena RGB",
+    fields: [
+      { type: "TEXT", label: "What is your gamer tag?", placeholder: "PlayerOne", required: true },
+      { type: "SELECT", label: "Primary role", placeholder: "Choose role", required: true, config: { options: [{ label: "Duelist", value: "duelist" }, { label: "Support", value: "support" }, { label: "Strategist", value: "strategist" }] } },
+      { type: "CHECKBOX", label: "I can join the Discord before match day", placeholder: "", required: true },
+    ],
+  },
+] satisfies TemplateCard[];
 
 const quickActivity = [
   ["Someone from Tokyo submitted your form", "2m ago", Globe2],
@@ -188,7 +289,7 @@ export default function DashboardPage() {
   const [selectedFieldIndex, setSelectedFieldIndex] = useState(0);
   const [lastSavedSnapshot, setLastSavedSnapshot] = useState("");
   const [device, setDevice] = useState<"Desktop" | "Tablet" | "Mobile">("Desktop");
-  const [theme, setTheme] = useState("Cyberpunk");
+  const [theme, setTheme] = useState("Glassmorphic Dark");
 
   const formsQuery = trpc.form.listMyForms.useQuery(undefined, { enabled: Boolean(user) });
   const selectedFormQuery = trpc.form.getFormById.useQuery({ id: selectedFormId ?? "" }, { enabled: Boolean(selectedFormId && user) });
@@ -331,6 +432,38 @@ export default function DashboardPage() {
     setActiveSection("forms");
   };
 
+  const useTemplate = (template: TemplateCard) => {
+    const nextDraft: DraftForm = {
+      title: template.title,
+      description: template.description,
+      slug: slugify(`${template.title}-${Date.now().toString(36)}`),
+      visibility: "PRIVATE",
+      status: "DRAFT",
+      fields: template.fields.map((field, order) => ({
+        type: field.type,
+        label: field.label,
+        description: field.description ?? "",
+        placeholder: field.placeholder ?? "",
+        required: field.required,
+        order,
+        config: field.config,
+      })),
+    };
+    setDraft(nextDraft);
+    setSelectedFormId(null);
+    setSelectedFieldIndex(0);
+    setLastSavedSnapshot("");
+    setTheme(template.theme);
+    setActiveSection("forms");
+    toast.success(`${template.title} loaded into the builder`);
+  };
+
+  const applyTheme = (themeCard: ThemeCard) => {
+    setTheme(themeCard.name);
+    setActiveSection("forms");
+    toast.success(`${themeCard.name} applied to the preview`);
+  };
+
   return (
     <main className="min-h-screen overflow-hidden bg-[#05070d] text-white">
       <div className="pointer-events-none fixed inset-0 bg-[linear-gradient(135deg,rgba(20,184,166,0.13),transparent_34%),linear-gradient(225deg,rgba(244,63,94,0.11),transparent_32%),linear-gradient(180deg,#05070d,#0b1020_52%,#05070d)]" />
@@ -371,8 +504,8 @@ export default function DashboardPage() {
                 theme={theme}
               />
             ) : null}
-            {activeSection === "explore" ? <ExploreSection /> : null}
-            {activeSection === "themes" ? <ThemesSection /> : null}
+            {activeSection === "explore" ? <ExploreSection onUseTemplate={useTemplate} /> : null}
+            {activeSection === "themes" ? <ThemesSection onApplyTheme={applyTheme} selectedTheme={theme} /> : null}
             {activeSection === "analytics" ? <AnalyticsSection totals={totals} /> : null}
             {activeSection === "responses" ? <ResponsesSection data={responseData} fields={draft.fields} isLoading={responsesQuery.isLoading} /> : null}
             {activeSection === "api" ? <ApiDocsSection /> : null}
@@ -718,6 +851,7 @@ function FieldLibrary({ addField, fields, selectedFieldIndex, setSelectedFieldIn
 function BuilderPreview({ device, draft, onDeviceChange, onThemeChange, theme }: { device: "Desktop" | "Tablet" | "Mobile"; draft: DraftForm; onDeviceChange: (device: "Desktop" | "Tablet" | "Mobile") => void; onThemeChange: (theme: string) => void; theme: string }) {
   const width = device === "Mobile" ? "max-w-[360px]" : device === "Tablet" ? "max-w-[560px]" : "max-w-3xl";
   const firstField = draft.fields[0];
+  const activeTheme = resolveTheme(theme);
   return (
     <section className="rounded-lg border border-white/10 bg-white/[0.055] p-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -733,26 +867,15 @@ function BuilderPreview({ device, draft, onDeviceChange, onThemeChange, theme }:
           ))}
         </div>
       </div>
-      <div className="mt-3 flex flex-wrap gap-2">
-        {["Cyberpunk", "Anime", "Space", "Hacker"].map((item) => (
-          <button className={`rounded-md border px-3 py-1.5 text-xs font-black transition ${theme === item ? "border-teal-300 bg-teal-300/15 text-white" : "border-white/10 bg-black/20 text-slate-400 hover:text-white"}`} key={item} onClick={() => onThemeChange(item)} type="button">
-            {item}
+      <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
+        {themeCollections.map((item) => (
+          <button className={`shrink-0 rounded-md border px-3 py-1.5 text-xs font-black transition ${activeTheme.key === item.key ? "border-teal-300 bg-teal-300/15 text-white" : "border-white/10 bg-black/20 text-slate-400 hover:text-white"}`} key={item.key} onClick={() => onThemeChange(item.name)} type="button">
+            {item.shortName}
           </button>
         ))}
       </div>
       <div className="mt-5 flex justify-center rounded-lg border border-teal-300/20 bg-[#101820] p-5">
-        <div className={`relative min-h-[430px] w-full ${width} overflow-hidden rounded-lg border border-white/10 bg-black/35 p-6 transition-all`}>
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_12%,rgba(20,184,166,0.20),transparent_30%),radial-gradient(circle_at_80%_22%,rgba(244,63,94,0.14),transparent_30%)]" />
-          <div className="relative flex min-h-[380px] flex-col justify-center">
-            <Badge className="w-fit border-teal-300/20 bg-teal-300/10 text-teal-100">Question 1 of {draft.fields.length}</Badge>
-            <h4 className="mt-8 text-3xl font-black leading-tight sm:text-4xl">{firstField?.label || "What's your dream startup?"}</h4>
-            <div className="mt-7">{firstField ? renderPreviewControl(firstField) : null}</div>
-            <div className="mt-8 flex items-center justify-between text-xs font-semibold text-slate-500">
-              <span>Press Enter</span>
-              <span className="rounded-md border border-white/10 bg-white/[0.05] px-2 py-1">Return</span>
-            </div>
-          </div>
-        </div>
+        <ThemeFormPreview className={`min-h-[430px] w-full ${width}`} field={firstField} questionCount={draft.fields.length} themeCard={activeTheme} />
       </div>
     </section>
   );
@@ -978,45 +1101,309 @@ function ResponsesPanel({ data, fields, isLoading }: { data?: FormResponse; fiel
   );
 }
 
-function ExploreSection() {
+function ExploreSection({ onUseTemplate }: { onUseTemplate: (template: TemplateCard) => void }) {
+  const [activeCategory, setActiveCategory] = useState<TemplateCategory>("Trending");
+  const [query, setQuery] = useState("");
+  const [selectedTemplate, setSelectedTemplate] = useState<TemplateCard>(templateCards[0]!);
+  const categories = ["Trending", "Anime", "Cyberpunk", "Startup", "Gaming"] satisfies TemplateCategory[];
+  const visibleTemplates = templateCards.filter((template) => {
+    const matchesCategory = activeCategory === "Trending" ? template.category === "Trending" || template.completion >= 78 : template.category === activeCategory;
+    const matchesQuery = `${template.title} ${template.description} ${template.theme}`.toLowerCase().includes(query.toLowerCase());
+    return matchesCategory && matchesQuery;
+  });
+
   return (
-    <SectionShell title="Explore" subtitle="Community-driven templates organized by vibe and use case.">
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        {templateCards.map(([name, copy, gradient]) => (
-          <article className="group min-h-64 overflow-hidden rounded-lg border border-white/10 bg-white/[0.055] p-4 transition hover:-translate-y-1 hover:border-teal-300/35" key={name}>
-            <div className={`h-32 rounded-lg bg-gradient-to-br ${gradient}`} />
-            <h3 className="mt-4 text-xl font-black">{name}</h3>
-            <p className="mt-2 text-sm leading-6 text-slate-400">{copy}</p>
-            <Button className="mt-4 border-white/12 bg-white/[0.06] text-white hover:bg-white/10" size="sm" variant="outline">
-              Use template
-            </Button>
-          </article>
-        ))}
+    <SectionShell title="Explore" subtitle="Production-ready templates with real builder handoff, search, and cinematic previews.">
+      <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_390px]">
+        <div className="space-y-5">
+          <section className="rounded-lg border border-white/10 bg-white/[0.055] p-4">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+              <div className="relative w-full lg:max-w-sm">
+                <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-500" />
+                <Input className="border-white/10 bg-black/25 pl-9 text-white" onChange={(event) => setQuery(event.target.value)} placeholder="Search templates, use cases, themes..." value={query} />
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {categories.map((category) => (
+                  <button
+                    className={`rounded-md border px-3 py-2 text-xs font-black transition ${
+                      activeCategory === category ? "border-teal-300 bg-teal-300/15 text-white" : "border-white/10 bg-black/20 text-slate-400 hover:text-white"
+                    }`}
+                    key={category}
+                    onClick={() => setActiveCategory(category)}
+                    type="button"
+                  >
+                    {category}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </section>
+
+          <div className="grid gap-4 md:grid-cols-2 2xl:grid-cols-3">
+            {visibleTemplates.map((template) => (
+              <TemplateCardView
+                key={template.title}
+                onSelect={() => setSelectedTemplate(template)}
+                onUse={() => onUseTemplate(template)}
+                selected={selectedTemplate.title === template.title}
+                template={template}
+              />
+            ))}
+          </div>
+
+          {!visibleTemplates.length ? (
+            <div className="rounded-lg border border-dashed border-white/15 bg-white/[0.04] p-8 text-center">
+              <Sparkles className="mx-auto size-7 text-teal-200" />
+              <h3 className="mt-4 text-xl font-black">No templates found</h3>
+              <p className="mt-2 text-sm text-slate-400">Try a different search or category.</p>
+            </div>
+          ) : null}
+        </div>
+
+        <TemplatePreviewPanel onUseTemplate={onUseTemplate} template={selectedTemplate} />
       </div>
     </SectionShell>
   );
 }
 
-function ThemesSection() {
+function TemplateCardView({ onSelect, onUse, selected, template }: { onSelect: () => void; onUse: () => void; selected: boolean; template: TemplateCard }) {
   return (
-    <SectionShell title="Themes" subtitle="Cinematic theme cards with hover motion and live preview energy.">
-      <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
-        {themeCollections.map((themeCard) => (
-          <article className="group overflow-hidden rounded-lg border border-white/10 bg-white/[0.055] p-4 transition hover:-translate-y-1 hover:border-teal-300/35 hover:shadow-[0_0_70px_rgba(20,184,166,0.14)]" key={themeCard.name}>
-            <p className="text-xs font-black uppercase tracking-[0.2em] text-slate-500">{themeCard.group}</p>
-            <div className={`relative mt-4 h-44 overflow-hidden rounded-lg bg-gradient-to-br ${themeCard.gradient}`}>
-              <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(255,255,255,0.35),transparent_20%),linear-gradient(135deg,rgba(0,0,0,0.05),rgba(0,0,0,0.28))]" />
-              <div className="absolute bottom-4 left-4 right-4 rounded-lg border border-white/25 bg-black/20 p-3 backdrop-blur-md transition group-hover:-translate-y-1">
-                <div className="h-2 w-20 rounded-full bg-white/70" />
-                <div className="mt-3 h-8 rounded-md border border-white/25 bg-white/15" />
-              </div>
+    <article className={`group overflow-hidden rounded-lg border bg-white/[0.055] p-4 transition duration-300 hover:-translate-y-1 hover:shadow-[0_0_70px_rgba(20,184,166,0.14)] ${selected ? "border-teal-300/50" : "border-white/10 hover:border-teal-300/35"}`}>
+      <button className="block w-full text-left" onClick={onSelect} type="button">
+        <div className={`relative h-40 overflow-hidden rounded-lg bg-gradient-to-br ${template.gradient}`}>
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_22%_18%,rgba(255,255,255,0.38),transparent_18%),linear-gradient(135deg,rgba(0,0,0,0.04),rgba(0,0,0,0.34))]" />
+          <div className="absolute bottom-4 left-4 right-4 rounded-lg border border-white/25 bg-black/20 p-3 backdrop-blur-md transition duration-300 group-hover:-translate-y-1">
+            <div className="h-2 w-24 rounded-full bg-white/70" />
+            <div className="mt-3 grid grid-cols-3 gap-2">
+              <div className="h-6 rounded bg-white/20" />
+              <div className="h-6 rounded bg-white/35" />
+              <div className="h-6 rounded bg-white/20" />
             </div>
-            <h3 className="mt-4 text-xl font-black">{themeCard.name}</h3>
-            <p className="mt-2 text-sm leading-6 text-slate-400">{themeCard.tone}</p>
-          </article>
+          </div>
+          <Badge className="absolute left-3 top-3 border-black/10 bg-black/25 text-white backdrop-blur">{template.category}</Badge>
+        </div>
+        <div className="mt-4 flex items-start justify-between gap-3">
+          <div>
+            <h3 className="text-lg font-black">{template.title}</h3>
+            <p className="mt-2 line-clamp-2 text-sm leading-6 text-slate-400">{template.description}</p>
+          </div>
+          <span className="shrink-0 rounded-md border border-teal-300/20 bg-teal-300/10 px-2 py-1 text-xs font-black text-teal-100">{template.completion}%</span>
+        </div>
+      </button>
+      <div className="mt-4 flex items-center justify-between gap-3 border-t border-white/10 pt-3 text-xs font-semibold text-slate-500">
+        <span>{template.stats}</span>
+        <span>{template.fields.length} fields</span>
+      </div>
+      <Button className="mt-4 w-full bg-white text-[#05070d] hover:bg-teal-100" onClick={onUse} size="sm">
+        <FilePlus2 className="size-4" />
+        Use template
+      </Button>
+    </article>
+  );
+}
+
+function TemplatePreviewPanel({ onUseTemplate, template }: { onUseTemplate: (template: TemplateCard) => void; template: TemplateCard }) {
+  return (
+    <aside className="sticky top-4 h-fit rounded-lg border border-white/10 bg-white/[0.055] p-4 shadow-[0_24px_90px_rgba(0,0,0,0.28)]">
+      <div className={`relative h-56 overflow-hidden rounded-lg bg-gradient-to-br ${template.gradient}`}>
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_24%_18%,rgba(255,255,255,0.36),transparent_18%),linear-gradient(180deg,transparent,rgba(0,0,0,0.45))]" />
+        <div className="absolute bottom-4 left-4 right-4">
+          <Badge className="border-white/20 bg-black/25 text-white backdrop-blur">{template.theme}</Badge>
+          <h3 className="mt-3 text-2xl font-black leading-tight">{template.title}</h3>
+        </div>
+      </div>
+      <p className="mt-4 text-sm leading-6 text-slate-300">{template.description}</p>
+      <div className="mt-4 grid grid-cols-3 gap-2">
+        <MetricPill label="Uses" value={template.stats} />
+        <MetricPill label="Complete" value={`${template.completion}%`} />
+        <MetricPill label="Fields" value={String(template.fields.length)} />
+      </div>
+      <div className="mt-5 space-y-2">
+        {template.fields.map((field, index) => (
+          <div className="rounded-lg border border-white/10 bg-black/24 p-3" key={`${template.title}-${field.label}`}>
+            <p className="text-xs font-bold text-slate-500">Question {index + 1}</p>
+            <p className="mt-1 text-sm font-black">{field.label}</p>
+          </div>
         ))}
       </div>
+      <Button className="mt-5 w-full bg-teal-300 text-[#04201d] hover:bg-teal-200" onClick={() => onUseTemplate(template)}>
+        <Rocket className="size-4" />
+        Load into builder
+      </Button>
+    </aside>
+  );
+}
+
+function ThemesSection({ onApplyTheme, selectedTheme }: { onApplyTheme: (theme: ThemeCard) => void; selectedTheme: string }) {
+  const [activeCategory, setActiveCategory] = useState<ThemeCategory>("All");
+  const [selected, setSelected] = useState<ThemeCard>(resolveTheme(selectedTheme));
+  const categories = ["All", "Cyberpunk", "Anime", "Hacker", "Space", "Gaming", "Premium", "Business", "Retro", "Default"] satisfies ThemeCategory[];
+  const visibleThemes = activeCategory === "All" ? themeCollections : themeCollections.filter((themeCard) => themeCard.category === activeCategory);
+
+  return (
+    <SectionShell title="Themes" subtitle="A live gallery where cards wake up on hover and apply directly to the form preview.">
+      <section className="relative overflow-hidden rounded-lg border border-white/10 bg-white/[0.055] p-5">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_10%,rgba(20,184,166,0.18),transparent_28%),radial-gradient(circle_at_80%_0%,rgba(244,63,94,0.14),transparent_30%)]" />
+        <div className="relative grid gap-5 xl:grid-cols-[minmax(0,1fr)_450px]">
+          <div>
+            <div className="flex gap-2 overflow-x-auto pb-1">
+              {categories.map((category) => (
+                <button
+                  className={`shrink-0 rounded-md border px-3 py-2 text-xs font-black transition ${
+                    activeCategory === category ? "border-teal-300 bg-teal-300/15 text-white" : "border-white/10 bg-black/20 text-slate-400 hover:text-white"
+                  }`}
+                  key={category}
+                  onClick={() => setActiveCategory(category)}
+                  type="button"
+                >
+                  {category}
+                </button>
+              ))}
+            </div>
+            <div className="mt-5 grid auto-rows-fr gap-5 md:grid-cols-2 2xl:grid-cols-3">
+              {visibleThemes.map((themeCard) => (
+                <ThemeCardView
+                  active={selected.key === themeCard.key}
+                  applied={resolveTheme(selectedTheme).key === themeCard.key}
+                  key={themeCard.name}
+                  onApply={() => onApplyTheme(themeCard)}
+                  onSelect={() => setSelected(themeCard)}
+                  themeCard={themeCard}
+                />
+              ))}
+            </div>
+          </div>
+          <ThemePreviewPanel onApplyTheme={onApplyTheme} selected={selected} selectedTheme={selectedTheme} />
+        </div>
+      </section>
     </SectionShell>
+  );
+}
+
+function ThemeCardView({ active, applied, onApply, onSelect, themeCard }: { active: boolean; applied: boolean; onApply: () => void; onSelect: () => void; themeCard: ThemeCard }) {
+  return (
+    <article className={`group theme-tilt overflow-hidden rounded-lg border bg-black/24 p-4 transition duration-300 hover:shadow-[0_0_70px_rgba(20,184,166,0.14)] ${active ? "border-teal-300/50" : "border-white/10 hover:border-teal-300/35"}`}>
+      <button className="block w-full text-left" onClick={onSelect} type="button">
+        <p className="text-xs font-black uppercase tracking-[0.2em] text-slate-500">{themeCard.category}</p>
+        <div className={`theme-hologram relative mt-4 h-44 overflow-hidden rounded-lg bg-gradient-to-br ${themeCard.surface}`}>
+          <ThemeAtmosphere themeKey={themeCard.key} compact />
+          <div className="absolute bottom-4 left-4 right-4 rounded-lg border border-white/25 bg-black/20 p-3 backdrop-blur-md transition group-hover:-translate-y-1">
+            <div className="h-2 w-20 rounded-full bg-white/70" />
+            <div className="mt-3 h-8 rounded-md border border-white/25 bg-white/15" />
+          </div>
+          {applied ? <Badge className="absolute right-3 top-3 border-teal-300/20 bg-teal-300/20 text-teal-50">Applied</Badge> : null}
+        </div>
+        <h3 className="mt-4 text-xl font-black">{themeCard.name}</h3>
+        <p className="mt-2 text-sm leading-6 text-slate-400">{themeCard.tone}</p>
+      </button>
+      <div className="mt-4 flex items-center justify-between gap-3 border-t border-white/10 pt-3 text-xs font-semibold text-slate-500">
+        <span>{themeCard.motion}</span>
+        <span className="text-teal-100">{themeCard.conversion}</span>
+      </div>
+      <Button className="mt-4 w-full border-white/12 bg-white/[0.06] text-white hover:bg-white/10" onClick={onApply} size="sm" variant="outline">
+        <Palette className="size-4" />
+        Apply theme
+      </Button>
+    </article>
+  );
+}
+
+function ThemePreviewPanel({ onApplyTheme, selected, selectedTheme }: { onApplyTheme: (theme: ThemeCard) => void; selected: ThemeCard; selectedTheme: string }) {
+  return (
+    <aside className="sticky top-4 h-fit rounded-lg border border-white/10 bg-black/35 p-4 backdrop-blur-xl">
+      <ThemeFormPreview className="min-h-[420px]" questionCount={4} themeCard={selected} />
+      <div className="mt-4 grid grid-cols-3 gap-2">
+        <MetricPill label="Accent" value={selected.accent} />
+        <MetricPill label="Type" value={selected.typography} />
+        <MetricPill label="Motion" value={selected.motion} />
+      </div>
+      <Button className="mt-5 w-full bg-white text-[#05070d] hover:bg-teal-100" onClick={() => onApplyTheme(selected)}>
+        <Wand2 className="size-4" />
+        {resolveTheme(selectedTheme).key === selected.key ? "Applied" : "Apply to builder"}
+      </Button>
+    </aside>
+  );
+}
+
+function ThemeFormPreview({ className = "", field, questionCount, themeCard }: { className?: string; field?: DraftField; questionCount: number; themeCard: ThemeCard }) {
+  const [light, setLight] = useState({ x: 48, y: 28 });
+  const prompt = field?.label || samplePrompt(themeCard.key);
+  const style = {
+    "--mouse-x": `${light.x}%`,
+    "--mouse-y": `${light.y}%`,
+  } as CSSProperties;
+
+  const updateLight = (event: MouseEvent<HTMLDivElement>) => {
+    const rect = event.currentTarget.getBoundingClientRect();
+    setLight({
+      x: Math.round(((event.clientX - rect.left) / rect.width) * 100),
+      y: Math.round(((event.clientY - rect.top) / rect.height) * 100),
+    });
+  };
+
+  return (
+    <div
+      className={`theme-preview theme-${themeCard.key} relative overflow-hidden rounded-lg border p-6 transition-all ${className}`}
+      onMouseMove={updateLight}
+      style={style}
+    >
+      <ThemeAtmosphere themeKey={themeCard.key} />
+      <div className="theme-light pointer-events-none absolute inset-0" />
+      <div className="relative flex min-h-[360px] flex-col justify-center">
+        <Badge className="theme-badge w-fit border-white/20 bg-black/25 text-white backdrop-blur">Question 1 of {questionCount}</Badge>
+        <p className="mt-5 text-xs font-black uppercase tracking-[0.22em] opacity-70">{themeCard.shortName} mode</p>
+        <h4 className="theme-title mt-5 text-3xl font-black leading-tight sm:text-4xl">{prompt}</h4>
+        <div className="mt-7">{field ? renderPreviewControl(field) : <ThemeSampleInput themeKey={themeCard.key} />}</div>
+        <div className="mt-8 flex items-center justify-between gap-3 text-xs font-semibold opacity-75">
+          <span>{themeCard.motion}</span>
+          <span className="theme-key rounded-md border px-2 py-1">{themeCard.key === "hacker" ? "RETURN" : "Enter"}</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ThemeAtmosphere({ compact = false, themeKey }: { compact?: boolean; themeKey: ThemeKey }) {
+  return (
+    <>
+      <div className={`absolute inset-0 bg-gradient-to-br ${resolveTheme(themeKey).surface}`} />
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_24%_18%,rgba(255,255,255,0.28),transparent_18%),linear-gradient(180deg,rgba(0,0,0,0.04),rgba(0,0,0,0.52))]" />
+      {themeKey === "cyberpunk" ? <><div className="cyber-grid absolute inset-0" /><div className="cyber-particles absolute inset-0" /><div className="theme-scanline absolute left-0 right-0 top-0 h-16 bg-gradient-to-b from-cyan-300/0 via-cyan-300/18 to-cyan-300/0" /></> : null}
+      {themeKey === "sakura" ? <><div className="sakura-clouds absolute inset-0" /><div className="sakura-petals absolute inset-0" /></> : null}
+      {themeKey === "hacker" ? <><div className="matrix-rain absolute inset-0" /><div className="crt-lines absolute inset-0" /></> : null}
+      {themeKey === "space" ? <><div className="space-stars absolute inset-0" /><div className="radar-ring absolute left-1/2 top-1/2 size-52 -translate-x-1/2 -translate-y-1/2" /><div className="theme-orbit absolute left-1/2 top-1/2 size-72 rounded-full border border-sky-300/25" /></> : null}
+      {themeKey === "gaming" ? <><div className="gaming-hud absolute inset-0" /><div className="energy-particles absolute inset-0" /></> : null}
+      {themeKey === "liquid" ? <><div className="liquid-reflection absolute inset-0" /><div className="absolute inset-8 rounded-[40%] bg-white/25 blur-3xl" /></> : null}
+      {themeKey === "startup" ? <div className="startup-grid absolute inset-0" /> : null}
+      {themeKey === "xp" ? <><div className="xp-clouds absolute inset-0" /><div className="crt-lines absolute inset-0 opacity-30" /></> : null}
+      {themeKey === "glass" ? <><div className="glass-layers absolute inset-0" /><div className="PollIq-particles absolute inset-0" /></> : null}
+      {compact ? <div className="absolute inset-0 bg-black/10 opacity-0 transition group-hover:opacity-100" /> : null}
+    </>
+  );
+}
+
+function ThemeSampleInput({ themeKey }: { themeKey: ThemeKey }) {
+  if (themeKey === "hacker") {
+    return (
+      <div className="font-mono">
+        <p className="terminal-line overflow-hidden whitespace-nowrap text-sm text-[#00FF66]">operator@polliq:~$ answer --now</p>
+        <button className="mt-4 w-full rounded-md border border-[#00FF66]/50 bg-[#00FF66]/10 px-4 py-3 text-left text-sm font-black text-[#00FF66]" type="button">&gt; continue</button>
+      </div>
+    );
+  }
+  return (
+    <div className="theme-input rounded-lg border px-4 py-3 text-sm font-semibold">
+      {themeKey === "sakura" ? "A soft cinematic moment" : themeKey === "xp" ? "Type your answer here..." : "Immersive and fast"}
+    </div>
+  );
+}
+
+function MetricPill({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-lg border border-white/10 bg-black/24 p-3">
+      <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">{label}</p>
+      <p className="mt-1 truncate text-sm font-black text-slate-100">{value}</p>
+    </div>
   );
 }
 
@@ -1265,6 +1652,34 @@ function getTotals(forms: FormSummary[]) {
 
 function formatCompactNumber(value: number) {
   return new Intl.NumberFormat("en", { notation: "compact", maximumFractionDigits: 1 }).format(value);
+}
+
+function resolveTheme(value: string): ThemeCard {
+  const normalized = value.toLowerCase();
+  return themeCollections.find((themeCard) => themeCard.key === normalized || themeCard.name.toLowerCase() === normalized || themeCard.shortName.toLowerCase() === normalized || themeCard.name.toLowerCase().includes(normalized)) ?? themeCollections[0]!;
+}
+
+function samplePrompt(themeKey: ThemeKey) {
+  switch (themeKey) {
+    case "cyberpunk":
+      return "What access level should your neon city pass unlock?";
+    case "sakura":
+      return "Which dreamy detail would make this event unforgettable?";
+    case "hacker":
+      return "Enter your root objective for this mission";
+    case "space":
+      return "Which planet should this mission explore first?";
+    case "gaming":
+      return "What role are you queueing for in the arena?";
+    case "liquid":
+      return "What should this premium request feel like?";
+    case "startup":
+      return "What pain point should this pitch solve first?";
+    case "xp":
+      return "Which classic internet memory should we bring back?";
+    case "glass":
+      return "What kind of experience should this form create?";
+  }
 }
 
 function slugify(value: string) {
