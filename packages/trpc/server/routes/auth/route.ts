@@ -37,12 +37,12 @@ export const authRouter = router({
     path: getPath("/getUserInfo"),
     tags: TAGS,
     summary: "Get user info",
-  }}).input(getUserInfoInputSchema).output(getUserInfoOutputSchema).query(async({ctx}) => {
-    const {userToken} = getAuthenticationCookie(ctx);
+  }}).input(getUserInfoInputSchema).output(getUserInfoOutputSchema).query(async({ ctx }) => {
+    const userToken = getAuthenticationCookie(ctx);
     if(!userToken){
       throw new Error("Unauthorized");
     }
     const {id, email, fullName} = await userService.verifyUserToken(userToken);
-    return { id, email, fullName };
+    return { id: id!, email: email!, fullName: fullName! };
   }),
 });

@@ -11,6 +11,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { useSignIn } from "~/hooks/api/auth";
 
@@ -20,7 +21,8 @@ type SignInFormValues = {
 };
 
 export default function SignInPage() {
-  const { signInWithEmailAndPasswordAsync } = useSignIn();
+  const router = useRouter();
+  const { error, signInUserWithEmailAndPasswordAsync, status } = useSignIn();
   const { register, handleSubmit } = useForm<SignInFormValues>({
     defaultValues: {
       email: "",
@@ -28,11 +30,12 @@ export default function SignInPage() {
     },
   });
 
-  const onSubmit = (values: SignInFormValues) => {
-    const { id } = signInWithEmailAndPasswordAsync(values);
-    // console.log(values);
-    
+  const onSubmit = async (values: SignInFormValues) => {
+    await signInUserWithEmailAndPasswordAsync(values);
+    router.push("/dashboard");
   };
+
+  const isSubmitting = status === "pending";
 
   return (
     <AuthCard>
@@ -50,6 +53,12 @@ export default function SignInPage() {
       <Divider />
 
       <form className="space-y-3.5" onSubmit={handleSubmit(onSubmit)}>
+        {error ? (
+          <div className="rounded-lg border border-red-400/25 bg-red-500/10 px-4 py-3 text-sm font-medium text-red-100">
+            {error.message}
+          </div>
+        ) : null}
+
         <label className="block">
           <span className="mb-2 block text-sm font-semibold text-slate-300">Email</span>
           <span className="relative block">
@@ -85,10 +94,11 @@ export default function SignInPage() {
         </label>
 
         <button
+          disabled={isSubmitting}
           className="group flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-white font-black text-[#050816] shadow-[0_0_42px_rgba(139,92,246,0.46)] transition hover:scale-[1.01] hover:shadow-[0_0_64px_rgba(34,211,238,0.5)] sm:h-12"
           type="submit"
         >
-          Login
+          {isSubmitting ? "Logging in..." : "Login"}
           <ArrowRight className="size-4 transition group-hover:translate-x-1" />
         </button>
       </form>
