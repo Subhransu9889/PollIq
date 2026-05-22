@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, Check, Mail, Send, Sparkles } from "lucide-react";
+import { ArrowLeft, Check, Clock3, Mail, Send, Sparkles } from "lucide-react";
 import Link from "next/link";
 import type { FormEvent } from "react";
 import { useMemo, useState } from "react";
@@ -49,6 +49,9 @@ export default function PublicFormClient({ slug }: { slug: string }) {
       setSubmitted(true);
       toast.success("Response submitted");
     },
+    onError: (mutationError) => {
+      toast.error(mutationError.message || "Could not submit response");
+    },
   });
   const [respondentEmail, setRespondentEmail] = useState("");
   const [answers, setAnswers] = useState<Record<string, AnswerValue>>({});
@@ -56,6 +59,8 @@ export default function PublicFormClient({ slug }: { slug: string }) {
 
   const form = formQuery.data;
   const fields = useMemo(() => ((form?.fields ?? []) as PublicField[]).slice().sort((a, b) => a.order - b.order), [form?.fields]);
+  const answeredCount = fields.filter((field) => !isEmptyAnswer(answers[field.id])).length;
+  const progress = fields.length ? Math.round((answeredCount / fields.length) * 100) : 0;
 
   if (formQuery.isLoading) {
     return (
@@ -88,7 +93,7 @@ export default function PublicFormClient({ slug }: { slug: string }) {
   if (submitted) {
     return (
       <main className="grid min-h-screen place-items-center bg-[#05070d] px-6 text-white">
-        <section className="w-full max-w-lg rounded-lg border border-teal-300/20 bg-white/[0.06] p-6 text-center">
+        <section className="w-full max-w-lg rounded-lg border border-teal-300/20 bg-white/[0.06] p-6 text-center shadow-[0_30px_120px_rgba(0,0,0,0.38)]">
           <div className="mx-auto grid size-12 place-items-center rounded-lg bg-teal-300 text-[#04201d]">
             <Check className="size-6" />
           </div>
@@ -126,12 +131,30 @@ export default function PublicFormClient({ slug }: { slug: string }) {
       <div className="pointer-events-none fixed inset-0 bg-[linear-gradient(135deg,rgba(20,184,166,0.13),transparent_34%),linear-gradient(225deg,rgba(244,63,94,0.11),transparent_32%),linear-gradient(180deg,#05070d,#0b1020_52%,#05070d)]" />
       <div className="PollIq-grid pointer-events-none fixed inset-0 opacity-[0.12]" />
 
-      <form className="relative mx-auto w-full max-w-3xl rounded-lg border border-white/10 bg-white/[0.055] p-5 shadow-[0_30px_120px_rgba(0,0,0,0.38)] backdrop-blur-xl sm:p-7" onSubmit={submit}>
-        <Badge className="border-teal-300/20 bg-teal-300/10 text-teal-100">PollIq form</Badge>
-        <h1 className="mt-4 text-3xl font-black tracking-tight sm:text-5xl">{form.title}</h1>
-        {form.description ? <p className="mt-3 text-base leading-7 text-slate-300">{form.description}</p> : null}
+      <form className="relative mx-auto w-full max-w-3xl overflow-hidden rounded-lg border border-white/10 bg-white/[0.055] shadow-[0_30px_120px_rgba(0,0,0,0.38)] backdrop-blur-xl" onSubmit={submit}>
+        <div className="border-b border-white/10 bg-black/20 p-5 sm:p-7">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <Badge className="border-teal-300/20 bg-teal-300/10 text-teal-100">PollIq form</Badge>
+            <div className="flex items-center gap-2 text-xs font-semibold text-slate-400">
+              <Clock3 className="size-4 text-teal-200" />
+              {fields.length} questions
+            </div>
+          </div>
+          <h1 className="mt-4 text-3xl font-black tracking-tight sm:text-5xl">{form.title}</h1>
+          {form.description ? <p className="mt-3 text-base leading-7 text-slate-300">{form.description}</p> : null}
+          <div className="mt-5">
+            <div className="mb-2 flex items-center justify-between text-xs font-semibold text-slate-400">
+              <span>Progress</span>
+              <span>{progress}%</span>
+            </div>
+            <div className="h-2 overflow-hidden rounded-full bg-white/10">
+              <div className="h-full rounded-full bg-teal-300 transition-all" style={{ width: `${progress}%` }} />
+            </div>
+          </div>
+        </div>
 
-        <div className="mt-7 rounded-lg border border-white/10 bg-black/24 p-4">
+        <div className="p-5 sm:p-7">
+        <div className="rounded-lg border border-white/10 bg-black/24 p-4">
           <Label className="text-slate-300">Your email</Label>
           <div className="relative mt-2">
             <Mail className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-500" />
@@ -158,10 +181,11 @@ export default function PublicFormClient({ slug }: { slug: string }) {
         </div>
 
         <div className="mt-6 flex justify-end">
-          <Button className="bg-teal-300 text-[#04201d] hover:bg-teal-200" disabled={submitResponse.isPending} type="submit">
+          <Button className="bg-teal-300 text-[#04201d] hover:bg-teal-200" disabled={submitResponse.isPending || fields.length === 0} type="submit">
             <Send className="size-4" />
             {submitResponse.isPending ? "Submitting..." : "Submit response"}
           </Button>
+        </div>
         </div>
       </form>
     </main>
@@ -180,7 +204,7 @@ function PublicFieldControl({
   onChange: (value: AnswerValue) => void;
 }) {
   return (
-    <section className="rounded-lg border border-white/10 bg-black/24 p-4">
+    <section className="rounded-lg border border-white/10 bg-black/24 p-4 transition focus-within:border-teal-300/40">
       <div className="mb-3">
         <Label className="text-base font-black text-slate-100">
           {index + 1}. {field.label} {field.required ? <span className="text-rose-200">*</span> : null}
@@ -238,7 +262,7 @@ function renderControl(field: PublicField, answer: AnswerValue | undefined, onCh
   }
 
   if (field.type === "CHECKBOX") {
-    return <OptionToggle checked={answer === true} label="Yes" onCheckedChange={(checked) => onChange(checked)} />;
+    return <OptionToggle checked={answer === true} label="Yes, I agree" onCheckedChange={(checked) => onChange(checked)} />;
   }
 
   if (field.type === "RATING") {
@@ -264,7 +288,13 @@ function renderControl(field: PublicField, answer: AnswerValue | undefined, onCh
   return (
     <Input
       className="border-white/10 bg-white/[0.04] text-white"
-      onChange={(event) => onChange(field.type === "NUMBER" ? Number(event.target.value) : event.target.value)}
+      onChange={(event) => {
+        if (field.type === "NUMBER") {
+          onChange(event.target.value === "" ? "" : Number(event.target.value));
+          return;
+        }
+        onChange(event.target.value);
+      }}
       placeholder={field.placeholder ?? ""}
       type={field.type === "EMAIL" ? "email" : field.type === "NUMBER" ? "number" : field.type === "DATE" ? "date" : "text"}
       value={typeof answer === "number" || typeof answer === "string" ? answer : ""}
