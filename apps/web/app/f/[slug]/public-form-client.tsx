@@ -40,6 +40,28 @@ type PublicField = {
   } | null;
 };
 
+type ThemeKey = "cyberpunk" | "sakura" | "hacker" | "space" | "gaming" | "liquid" | "startup" | "xp" | "glass";
+
+type PublicTheme = {
+  key: ThemeKey;
+  name: string;
+  shortName: string;
+  surface: string;
+  motion: string;
+};
+
+const publicThemes = [
+  { key: "cyberpunk", name: "Cyberpunk Neon City", shortName: "Cyberpunk", surface: "from-[#0B0F1A] via-[#1a0b2e] to-[#001f2f]", motion: "Grid, holograms, particles" },
+  { key: "sakura", name: "Anime Sakura Dream", shortName: "Sakura", surface: "from-[#FDF2F8] via-[#FBCFE8] to-[#C084FC]", motion: "Falling sakura petals" },
+  { key: "hacker", name: "Hacker Terminal", shortName: "Terminal", surface: "from-black via-[#05140b] to-[#0D1117]", motion: "Matrix rain + typing" },
+  { key: "space", name: "Space Mission Control", shortName: "Space", surface: "from-[#020617] via-[#0c1b3b] to-[#111052]", motion: "Stars, orbit lines, radar" },
+  { key: "gaming", name: "Gaming Arena RGB", shortName: "Gaming", surface: "from-[#111827] via-[#3b1020] to-[#082619]", motion: "Animated glowing borders" },
+  { key: "liquid", name: "Apple Liquid Glass", shortName: "Liquid", surface: "from-white via-[#dff7ff] to-[#f7e8ff]", motion: "Liquid reflection hover" },
+  { key: "startup", name: "Startup Pitch Deck", shortName: "Startup", surface: "from-[#0F172A] via-[#182553] to-[#052f3b]", motion: "Clean dashboard glow" },
+  { key: "xp", name: "Retro Windows XP", shortName: "Windows XP", surface: "from-[#245edb] via-[#3b8cff] to-[#58c241]", motion: "CRT blur + desktop shine" },
+  { key: "glass", name: "Glassmorphic Dark", shortName: "Glass", surface: "from-[#05070d] via-[#101820] to-[#241039]", motion: "Layered glass glow" },
+] satisfies PublicTheme[];
+
 type AnswerValue = string | number | boolean | string[] | number[] | boolean[];
 
 export default function PublicFormClient({ slug }: { slug: string }) {
@@ -59,6 +81,7 @@ export default function PublicFormClient({ slug }: { slug: string }) {
 
   const form = formQuery.data;
   const fields = useMemo(() => ((form?.fields ?? []) as PublicField[]).slice().sort((a, b) => a.order - b.order), [form?.fields]);
+  const activeTheme = resolvePublicTheme(form?.theme?.slug ?? form?.theme?.name ?? "glass");
   const answeredCount = fields.filter((field) => !isEmptyAnswer(answers[field.id])).length;
   const progress = fields.length ? Math.round((answeredCount / fields.length) * 100) : 0;
 
@@ -92,8 +115,9 @@ export default function PublicFormClient({ slug }: { slug: string }) {
 
   if (submitted) {
     return (
-      <main className="grid min-h-screen place-items-center bg-[#05070d] px-6 text-white">
-        <section className="w-full max-w-lg rounded-lg border border-teal-300/20 bg-white/[0.06] p-6 text-center shadow-[0_30px_120px_rgba(0,0,0,0.38)]">
+      <main className={`theme-preview theme-${activeTheme.key} grid min-h-screen place-items-center px-6`}>
+        <ThemeAtmosphere themeKey={activeTheme.key} />
+        <section className="relative w-full max-w-lg rounded-lg border border-teal-300/20 bg-white/[0.06] p-6 text-center shadow-[0_30px_120px_rgba(0,0,0,0.38)]">
           <div className="mx-auto grid size-12 place-items-center rounded-lg bg-teal-300 text-[#04201d]">
             <Check className="size-6" />
           </div>
@@ -127,14 +151,14 @@ export default function PublicFormClient({ slug }: { slug: string }) {
   };
 
   return (
-    <main className="min-h-screen bg-[#05070d] px-4 py-8 text-white sm:px-6">
-      <div className="pointer-events-none fixed inset-0 bg-[linear-gradient(135deg,rgba(20,184,166,0.13),transparent_34%),linear-gradient(225deg,rgba(244,63,94,0.11),transparent_32%),linear-gradient(180deg,#05070d,#0b1020_52%,#05070d)]" />
-      <div className="PollIq-grid pointer-events-none fixed inset-0 opacity-[0.12]" />
+    <main className={`theme-preview theme-${activeTheme.key} min-h-screen px-4 py-8 sm:px-6`}>
+      <ThemeAtmosphere themeKey={activeTheme.key} />
+      <div className="theme-light pointer-events-none fixed inset-0" />
 
-      <form className="relative mx-auto w-full max-w-3xl overflow-hidden rounded-lg border border-white/10 bg-white/[0.055] shadow-[0_30px_120px_rgba(0,0,0,0.38)] backdrop-blur-xl" onSubmit={submit}>
+      <form className="relative mx-auto w-full max-w-3xl overflow-hidden rounded-lg border border-white/10 bg-white/[0.08] shadow-[0_30px_120px_rgba(0,0,0,0.38)] backdrop-blur-xl" onSubmit={submit}>
         <div className="border-b border-white/10 bg-black/20 p-5 sm:p-7">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <Badge className="border-teal-300/20 bg-teal-300/10 text-teal-100">PollIq form</Badge>
+            <Badge className="theme-badge border-white/20 bg-black/25 text-white backdrop-blur">{activeTheme.shortName}</Badge>
             <div className="flex items-center gap-2 text-xs font-semibold text-slate-400">
               <Clock3 className="size-4 text-teal-200" />
               {fields.length} questions
@@ -180,7 +204,8 @@ export default function PublicFormClient({ slug }: { slug: string }) {
           ))}
         </div>
 
-        <div className="mt-6 flex justify-end">
+        <div className="mt-6 flex flex-wrap items-center justify-between gap-3">
+          <p className="text-xs font-semibold opacity-75">{activeTheme.motion}</p>
           <Button className="bg-teal-300 text-[#04201d] hover:bg-teal-200" disabled={submitResponse.isPending || fields.length === 0} type="submit">
             <Send className="size-4" />
             {submitResponse.isPending ? "Submitting..." : "Submit response"}
@@ -322,4 +347,28 @@ function isEmptyAnswer(value: AnswerValue | undefined) {
     return value.length === 0;
   }
   return false;
+}
+
+function resolvePublicTheme(value: string): PublicTheme {
+  const normalized = value.toLowerCase();
+  return publicThemes.find((theme) => theme.key === normalized || theme.name.toLowerCase() === normalized || theme.name.toLowerCase().includes(normalized)) ?? publicThemes[publicThemes.length - 1]!;
+}
+
+function ThemeAtmosphere({ themeKey }: { themeKey: ThemeKey }) {
+  const theme = resolvePublicTheme(themeKey);
+  return (
+    <>
+      <div className={`fixed inset-0 bg-gradient-to-br ${theme.surface}`} />
+      <div className="fixed inset-0 bg-[radial-gradient(circle_at_24%_18%,rgba(255,255,255,0.28),transparent_18%),linear-gradient(180deg,rgba(0,0,0,0.04),rgba(0,0,0,0.52))]" />
+      {themeKey === "cyberpunk" ? <><div className="cyber-grid fixed inset-0" /><div className="cyber-particles fixed inset-0" /><div className="theme-scanline fixed left-0 right-0 top-0 h-16 bg-gradient-to-b from-cyan-300/0 via-cyan-300/18 to-cyan-300/0" /></> : null}
+      {themeKey === "sakura" ? <><div className="sakura-clouds fixed inset-0" /><div className="sakura-petals fixed inset-0" /></> : null}
+      {themeKey === "hacker" ? <><div className="matrix-rain fixed inset-0" /><div className="crt-lines fixed inset-0" /></> : null}
+      {themeKey === "space" ? <><div className="space-stars fixed inset-0" /><div className="radar-ring fixed left-1/2 top-1/2 size-72 -translate-x-1/2 -translate-y-1/2" /></> : null}
+      {themeKey === "gaming" ? <><div className="gaming-hud fixed inset-0" /><div className="energy-particles fixed inset-0" /></> : null}
+      {themeKey === "liquid" ? <><div className="liquid-reflection fixed inset-0" /><div className="fixed inset-12 rounded-[40%] bg-white/25 blur-3xl" /></> : null}
+      {themeKey === "startup" ? <div className="startup-grid fixed inset-0" /> : null}
+      {themeKey === "xp" ? <><div className="xp-clouds fixed inset-0" /><div className="crt-lines fixed inset-0 opacity-30" /></> : null}
+      {themeKey === "glass" ? <><div className="glass-layers fixed inset-0" /><div className="PollIq-particles fixed inset-0" /></> : null}
+    </>
+  );
 }

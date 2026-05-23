@@ -3,6 +3,7 @@ import { formsTable } from "@repo/database/models/form";
 import { formFieldsTable } from "@repo/database/models/form-fields";
 import { responsesTable } from "@repo/database/models/responses";
 import { responseAnswersTable } from "@repo/database/models/response-answers";
+import { themesTable } from "@repo/database/models/themes";
 import {
   createFormInput,
   updateFormInput,
@@ -18,6 +19,81 @@ import {
 } from "./model";
 
 class FormService {
+  private themePresets = {
+    cyberpunk: {
+      name: "Cyberpunk Neon City",
+      background: "from-[#0B0F1A] via-[#1a0b2e] to-[#001f2f]",
+      primaryColor: "#FF00FF",
+      secondaryColor: "#00E5FF",
+      accentColor: "#8B5CF6",
+      fontFamily: "Space Grotesk",
+    },
+    sakura: {
+      name: "Anime Sakura Dream",
+      background: "from-[#FDF2F8] via-[#FBCFE8] to-[#C084FC]",
+      primaryColor: "#F9A8D4",
+      secondaryColor: "#C084FC",
+      accentColor: "#831843",
+      fontFamily: "Poppins",
+    },
+    hacker: {
+      name: "Hacker Terminal",
+      background: "from-black via-[#05140b] to-[#0D1117]",
+      primaryColor: "#00FF66",
+      secondaryColor: "#0D1117",
+      accentColor: "#4ADE80",
+      fontFamily: "JetBrains Mono",
+    },
+    space: {
+      name: "Space Mission Control",
+      background: "from-[#020617] via-[#0c1b3b] to-[#111052]",
+      primaryColor: "#38BDF8",
+      secondaryColor: "#818CF8",
+      accentColor: "#E0F2FE",
+      fontFamily: "Orbitron",
+    },
+    gaming: {
+      name: "Gaming Arena RGB",
+      background: "from-[#111827] via-[#3b1020] to-[#082619]",
+      primaryColor: "#EF4444",
+      secondaryColor: "#F59E0B",
+      accentColor: "#10B981",
+      fontFamily: "Rajdhani",
+    },
+    liquid: {
+      name: "Apple Liquid Glass",
+      background: "from-white via-[#dff7ff] to-[#f7e8ff]",
+      primaryColor: "#FFFFFF",
+      secondaryColor: "#DFF7FF",
+      accentColor: "#7C3AED",
+      fontFamily: "Geist",
+    },
+    startup: {
+      name: "Startup Pitch Deck",
+      background: "from-[#0F172A] via-[#182553] to-[#052f3b]",
+      primaryColor: "#6366F1",
+      secondaryColor: "#06B6D4",
+      accentColor: "#F8FAFC",
+      fontFamily: "Geist",
+    },
+    xp: {
+      name: "Retro Windows XP",
+      background: "from-[#245edb] via-[#3b8cff] to-[#58c241]",
+      primaryColor: "#245EDB",
+      secondaryColor: "#58C241",
+      accentColor: "#FFFFFF",
+      fontFamily: "Tahoma",
+    },
+    glass: {
+      name: "Glassmorphic Dark",
+      background: "from-[#05070d] via-[#101820] to-[#241039]",
+      primaryColor: "#2DD4BF",
+      secondaryColor: "#D946EF",
+      accentColor: "#FFFFFF",
+      fontFamily: "Geist",
+    },
+  } as const;
+
   private async getFormById(formId: string) {
     const results = await db.select().from(formsTable).where(eq(formsTable.id, formId)).limit(1);
     if (!results.length) {
@@ -50,14 +126,47 @@ class FormService {
     return form;
   }
 
+  private async resolveThemeId(themeSlug?: string | null, themeId?: string | null) {
+    if (themeId) return themeId;
+    if (!themeSlug) return undefined;
+
+    const slug = themeSlug.toLowerCase();
+    const existing = await db.select().from(themesTable).where(eq(themesTable.slug, slug)).limit(1);
+    if (existing[0]) return existing[0].id;
+
+    const preset = this.themePresets[slug as keyof typeof this.themePresets] ?? this.themePresets.glass;
+    const created = await db
+      .insert(themesTable)
+      .values({
+        slug,
+        name: preset.name,
+        background: preset.background,
+        primaryColor: preset.primaryColor,
+        secondaryColor: preset.secondaryColor,
+        accentColor: preset.accentColor,
+        fontFamily: preset.fontFamily,
+      })
+      .returning({ id: themesTable.id });
+
+    return created[0]?.id;
+  }
+
+  private async attachTheme<T extends { themeId?: string | null }>(form: T) {
+    if (!form.themeId) return { ...form, theme: null };
+    const theme = await db.select().from(themesTable).where(eq(themesTable.id, form.themeId)).limit(1);
+    return { ...form, theme: theme[0] ?? null };
+  }
+
   public async createForm(payload: CreateFormInputType & { creatorId: string }) {
     const input = await createFormInput.parseAsync(payload);
-    const { fields, ...formData } = input;
+    const { fields, themeSlug, ...formData } = input;
+    const themeId = await this.resolveThemeId(themeSlug, formData.themeId);
 
     const formResult = await db
       .insert(formsTable)
       .values({
         ...formData,
+        themeId,
         creatorId: payload.creatorId,
       })
       .returning({ id: formsTable.id });
@@ -82,18 +191,20 @@ class FormService {
 
   public async updateForm(payload: UpdateFormInputType & { creatorId: string }) {
     const input = await updateFormInput.parseAsync(payload);
-    const { id, fields, ...formUpdates } = input;
+    const { id, fields, themeSlug, ...formUpdates } = input;
 
     if (!id) {
       throw new Error("Form id is required");
     }
 
     await this.verifyOwnership(id, payload.creatorId);
+    const themeId = await this.resolveThemeId(themeSlug, formUpdates.themeId);
+    const updates = themeId ? { ...formUpdates, themeId } : formUpdates;
 
-    if (Object.keys(formUpdates).length) {
+    if (Object.keys(updates).length) {
       await db
         .update(formsTable)
-        .set(formUpdates)
+        .set(updates)
         .where(eq(formsTable.id, id));
     }
 
@@ -133,29 +244,31 @@ class FormService {
   public async getFormWithFieldsBySlug(slug: string) {
     const form = await this.getFormBySlug(slug);
     const fields = await this.getFormFields(form.id);
-    return { ...form, fields };
+    return { ...(await this.attachTheme(form)), fields };
   }
 
   public async getFormWithFieldsById(formId: string) {
     const form = await this.getFormById(formId);
     const fields = await this.getFormFields(formId);
-    return { ...form, fields };
+    return { ...(await this.attachTheme(form)), fields };
   }
 
   public async listPublicForms() {
-    return db
+    const forms = await db
       .select()
       .from(formsTable)
       .where(and(eq(formsTable.visibility, "PUBLIC"), eq(formsTable.status, "PUBLISHED")))
       .orderBy(formsTable.createdAt);
+    return Promise.all(forms.map((form) => this.attachTheme(form)));
   }
 
   public async listMyForms(creatorId: string) {
-    return db
+    const forms = await db
       .select()
       .from(formsTable)
       .where(eq(formsTable.creatorId, creatorId))
       .orderBy(formsTable.createdAt);
+    return Promise.all(forms.map((form) => this.attachTheme(form)));
   }
 
   public async createField(payload: CreateFormFieldInputType & { creatorId: string }) {

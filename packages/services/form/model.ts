@@ -69,6 +69,7 @@ export const createFormInput = z.object({
   visibility: formVisibilitySchema.default("PRIVATE"),
   status: formStatusSchema.default("DRAFT"),
   themeId: z.string().uuid().optional(),
+  themeSlug: z.string().min(1).max(64).optional(),
   fields: z.array(createFormFieldInput.omit({ formId: true })).min(1),
 });
 

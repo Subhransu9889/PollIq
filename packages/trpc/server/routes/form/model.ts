@@ -65,6 +65,25 @@ export const formOutputSchema = z.object({
   responseCount: z.number().int().nullable(),
   createdAt: z.date().nullable(),
   updatedAt: z.date().nullable(),
+  theme: z
+    .object({
+      id: z.string().uuid(),
+      name: z.string(),
+      slug: z.string(),
+      description: z.string().nullable().optional(),
+      previewImage: z.string().nullable().optional(),
+      background: z.string().nullable().optional(),
+      primaryColor: z.string().nullable().optional(),
+      secondaryColor: z.string().nullable().optional(),
+      accentColor: z.string().nullable().optional(),
+      fontFamily: z.string().nullable().optional(),
+      customCss: z.string().nullable().optional(),
+      isPremium: z.boolean(),
+      createdAt: z.date(),
+      updatedAt: z.date(),
+    })
+    .nullable()
+    .optional(),
 });
 
 export const formWithFieldsOutputSchema = formOutputSchema.extend({
@@ -92,4 +111,3 @@ export const getFormResponsesOutputSchema = z.object({
   responses: z.array(formResponseOutputSchema),
   answers: z.array(formResponseAnswerOutputSchema),
 });
-

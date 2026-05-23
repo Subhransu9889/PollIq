@@ -80,8 +80,15 @@ type DraftForm = {
   slug: string;
   visibility: Visibility;
   status: Status;
+  themeSlug?: ThemeKey;
   fields: DraftField[];
 };
+
+type FormTheme = {
+  id: string;
+  name: string;
+  slug: string;
+} | null;
 
 type FormSummary = {
   id: string;
@@ -93,6 +100,7 @@ type FormSummary = {
   views?: number | null;
   responseCount?: number | null;
   createdAt?: Date | string | null;
+  theme?: FormTheme;
 };
 
 type FormResponse = {
@@ -272,6 +280,7 @@ const newDraftForm = (): DraftForm => ({
   slug: `form-${Date.now().toString(36)}`,
   visibility: "PRIVATE",
   status: "DRAFT",
+  themeSlug: "glass",
   fields: [
     { ...emptyField(0, "EMAIL"), required: true },
     { ...emptyField(1, "TEXTAREA"), label: "What should we improve next?", required: true },
@@ -354,6 +363,7 @@ export default function DashboardPage() {
       slug: form.slug,
       visibility: form.visibility as Visibility,
       status: form.status as Status,
+      themeSlug: resolveTheme(form.theme?.slug ?? form.theme?.name ?? "glass").key,
       fields: form.fields.map((field, index) => ({
         id: field.id,
         type: field.type as FieldType,
@@ -366,6 +376,7 @@ export default function DashboardPage() {
       })),
     };
     setDraft(nextDraft);
+    setTheme(resolveTheme(nextDraft.themeSlug ?? "glass").name);
     setLastSavedSnapshot(JSON.stringify(toPayload(nextDraft)));
     setSelectedFieldIndex(0);
   }, [selectedFormQuery.data]);
@@ -439,6 +450,7 @@ export default function DashboardPage() {
       slug: slugify(`${template.title}-${Date.now().toString(36)}`),
       visibility: "PRIVATE",
       status: "DRAFT",
+      themeSlug: resolveTheme(template.theme).key,
       fields: template.fields.map((field, order) => ({
         type: field.type,
         label: field.label,
@@ -460,8 +472,9 @@ export default function DashboardPage() {
 
   const applyTheme = (themeCard: ThemeCard) => {
     setTheme(themeCard.name);
+    setDraft((current) => ({ ...current, themeSlug: themeCard.key }));
     setActiveSection("forms");
-    toast.success(`${themeCard.name} applied to the preview`);
+    toast.success(`${themeCard.name} applied to the form`);
   };
 
   return (
@@ -506,7 +519,7 @@ export default function DashboardPage() {
             ) : null}
             {activeSection === "explore" ? <ExploreSection onUseTemplate={useTemplate} /> : null}
             {activeSection === "themes" ? <ThemesSection onApplyTheme={applyTheme} selectedTheme={theme} /> : null}
-            {activeSection === "analytics" ? <AnalyticsSection totals={totals} /> : null}
+            {activeSection === "analytics" ? <AnalyticsSection fields={draft.fields} responseData={responseData} totals={totals} /> : null}
             {activeSection === "responses" ? <ResponsesSection data={responseData} fields={draft.fields} isLoading={responsesQuery.isLoading} /> : null}
             {activeSection === "api" ? <ApiDocsSection /> : null}
             {activeSection === "settings" ? <SettingsSection /> : null}
@@ -801,7 +814,18 @@ function FormsWorkspace(props: {
 
       <section className="grid gap-5 xl:grid-cols-[260px_minmax(0,1fr)_320px]">
         <FieldLibrary addField={props.addField} fields={props.draft.fields} selectedFieldIndex={props.selectedFieldIndex} setSelectedFieldIndex={props.setSelectedFieldIndex} />
-        <BuilderPreview device={props.device} draft={props.draft} onDeviceChange={props.onDeviceChange} onThemeChange={props.onThemeChange} theme={props.theme} />
+        <BuilderPreview
+          device={props.device}
+          draft={props.draft}
+          onDeviceChange={props.onDeviceChange}
+          onThemeChange={(nextTheme) => {
+            const resolved = resolveTheme(nextTheme);
+            props.onThemeChange(resolved.name);
+            props.setDraft((current) => ({ ...current, themeSlug: resolved.key }));
+          }}
+          selectedFieldIndex={props.selectedFieldIndex}
+          theme={props.theme}
+        />
         {props.selectedField ? (
           <FieldSettings
             field={props.selectedField}
@@ -848,9 +872,23 @@ function FieldLibrary({ addField, fields, selectedFieldIndex, setSelectedFieldIn
   );
 }
 
-function BuilderPreview({ device, draft, onDeviceChange, onThemeChange, theme }: { device: "Desktop" | "Tablet" | "Mobile"; draft: DraftForm; onDeviceChange: (device: "Desktop" | "Tablet" | "Mobile") => void; onThemeChange: (theme: string) => void; theme: string }) {
+function BuilderPreview({
+  device,
+  draft,
+  onDeviceChange,
+  onThemeChange,
+  selectedFieldIndex,
+  theme,
+}: {
+  device: "Desktop" | "Tablet" | "Mobile";
+  draft: DraftForm;
+  onDeviceChange: (device: "Desktop" | "Tablet" | "Mobile") => void;
+  onThemeChange: (theme: string) => void;
+  selectedFieldIndex: number;
+  theme: string;
+}) {
   const width = device === "Mobile" ? "max-w-[360px]" : device === "Tablet" ? "max-w-[560px]" : "max-w-3xl";
-  const firstField = draft.fields[0];
+  const activeField = draft.fields[selectedFieldIndex] ?? draft.fields[0];
   const activeTheme = resolveTheme(theme);
   return (
     <section className="rounded-lg border border-white/10 bg-white/[0.055] p-4">
@@ -875,7 +913,7 @@ function BuilderPreview({ device, draft, onDeviceChange, onThemeChange, theme }:
         ))}
       </div>
       <div className="mt-5 flex justify-center rounded-lg border border-teal-300/20 bg-[#101820] p-5">
-        <ThemeFormPreview className={`min-h-[430px] w-full ${width}`} field={firstField} questionCount={draft.fields.length} themeCard={activeTheme} />
+        <ThemeFormPreview className={`min-h-[430px] w-full ${width}`} field={activeField} questionCount={draft.fields.length} questionIndex={selectedFieldIndex} themeCard={activeTheme} />
       </div>
     </section>
   );
@@ -1325,7 +1363,7 @@ function ThemePreviewPanel({ onApplyTheme, selected, selectedTheme }: { onApplyT
   );
 }
 
-function ThemeFormPreview({ className = "", field, questionCount, themeCard }: { className?: string; field?: DraftField; questionCount: number; themeCard: ThemeCard }) {
+function ThemeFormPreview({ className = "", field, questionCount, questionIndex = 0, themeCard }: { className?: string; field?: DraftField; questionCount: number; questionIndex?: number; themeCard: ThemeCard }) {
   const [light, setLight] = useState({ x: 48, y: 28 });
   const prompt = field?.label || samplePrompt(themeCard.key);
   const style = {
@@ -1350,7 +1388,7 @@ function ThemeFormPreview({ className = "", field, questionCount, themeCard }: {
       <ThemeAtmosphere themeKey={themeCard.key} />
       <div className="theme-light pointer-events-none absolute inset-0" />
       <div className="relative flex min-h-[360px] flex-col justify-center">
-        <Badge className="theme-badge w-fit border-white/20 bg-black/25 text-white backdrop-blur">Question 1 of {questionCount}</Badge>
+        <Badge className="theme-badge w-fit border-white/20 bg-black/25 text-white backdrop-blur">Question {Math.min(questionIndex + 1, questionCount)} of {questionCount}</Badge>
         <p className="mt-5 text-xs font-black uppercase tracking-[0.22em] opacity-70">{themeCard.shortName} mode</p>
         <h4 className="theme-title mt-5 text-3xl font-black leading-tight sm:text-4xl">{prompt}</h4>
         <div className="mt-7">{field ? renderPreviewControl(field) : <ThemeSampleInput themeKey={themeCard.key} />}</div>
@@ -1407,21 +1445,45 @@ function MetricPill({ label, value }: { label: string; value: string }) {
   );
 }
 
-function AnalyticsSection({ totals }: { totals: ReturnType<typeof getTotals> }) {
+function AnalyticsSection({ fields, responseData, totals }: { fields: DraftField[]; responseData?: FormResponse; totals: ReturnType<typeof getTotals> }) {
+  const [view, setView] = useState<"trend" | "questions" | "mix">("trend");
+  const trend = useMemo(() => buildResponseTrend(responseData), [responseData]);
+  const fieldCoverage = useMemo(() => buildFieldCoverage(responseData, fields), [responseData, fields]);
+  const peak = Math.max(1, ...trend.map((item) => item.count));
+  const avgPerDay = trend.length ? (responseData?.responses.length ?? 0) / trend.length : 0;
+
   return (
     <SectionShell title="Analytics" subtitle="Mission-control style metrics for form performance.">
       <Stats totals={totals} />
       <div className="grid gap-5 xl:grid-cols-[1.35fr_0.65fr]">
         <section className="rounded-lg border border-white/10 bg-white/[0.055] p-5">
-          <h3 className="text-xl font-black">Responses Over Time</h3>
-          <div className="mt-6 h-64 rounded-lg border border-white/10 bg-black/24 p-5">
-            <SparkLineLarge />
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h3 className="text-xl font-black">Responses Over Time</h3>
+              <p className="mt-1 text-sm text-slate-400">Daily submissions from the selected form.</p>
+            </div>
+            <div className="flex rounded-lg border border-white/10 bg-black/24 p-1">
+              {(["trend", "questions", "mix"] as const).map((item) => (
+                <button className={`rounded-md px-3 py-1.5 text-xs font-black transition ${view === item ? "bg-white text-[#05070d]" : "text-slate-400 hover:text-white"}`} key={item} onClick={() => setView(item)} type="button">
+                  {item === "trend" ? "Trend" : item === "questions" ? "Questions" : "Mix"}
+                </button>
+              ))}
+            </div>
           </div>
+          {view === "trend" ? (
+            <div className="mt-6 h-72 rounded-lg border border-white/10 bg-black/24 p-5">
+              <ResponseTrendGraph data={trend} peak={peak} />
+            </div>
+          ) : null}
+          {view === "questions" ? <QuestionCoverage data={fieldCoverage} /> : null}
+          {view === "mix" ? <ResponseMix data={responseData} fields={fields} /> : null}
         </section>
         <section className="rounded-lg border border-amber-300/20 bg-amber-300/10 p-5">
           <ShieldAlert className="size-6 text-amber-100" />
-          <h3 className="mt-4 text-xl font-black">Most users leave at Question 5</h3>
-          <p className="mt-2 text-sm leading-6 text-amber-50/80">Shorten the question, add helper text, or move it later in the flow.</p>
+          <h3 className="mt-4 text-xl font-black">{getAnalyticsInsight(fieldCoverage)}</h3>
+          <p className="mt-2 text-sm leading-6 text-amber-50/80">
+            {responseData?.responses.length ? `${responseData.responses.length} submissions, ${avgPerDay.toFixed(1)} avg/day, and ${fields.length} questions tracked.` : "Publish and share this form to unlock live question-level insights."}
+          </p>
         </section>
       </div>
     </SectionShell>
@@ -1429,21 +1491,53 @@ function AnalyticsSection({ totals }: { totals: ReturnType<typeof getTotals> }) 
 }
 
 function ResponsesSection({ data, fields, isLoading }: { data?: FormResponse; fields: DraftField[]; isLoading: boolean }) {
+  const ordered = (data?.responses ?? []).slice().reverse();
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const selected = ordered.find((response) => response.id === selectedId) ?? ordered[0];
+  const answers = getAnswersForResponse(data, selected?.id);
+
   return (
     <SectionShell title="Responses" subtitle="Submission list on the left, beautiful response preview on the right.">
       <div className="grid gap-5 xl:grid-cols-[340px_minmax(0,1fr)]">
-        <ResponsesPanel data={data} fields={fields} isLoading={isLoading} />
-        <section className="rounded-lg border border-white/10 bg-white/[0.055] p-5">
-          <h3 className="text-xl font-black">Response Preview</h3>
-          <div className="mt-5 space-y-4">
-            {fields.slice(0, 4).map((field, index) => (
-              <div className="rounded-lg border border-white/10 bg-black/24 p-4" key={`${field.id ?? field.label}-${index}`}>
-                <p className="text-sm font-bold text-slate-400">Question</p>
-                <p className="mt-1 font-black">{field.label}</p>
-                <p className="mt-4 text-sm font-bold text-slate-400">Answer</p>
-                <p className="mt-1 text-teal-100">{field.type === "EMAIL" ? "name@example.com" : "Sample respondent answer"}</p>
-              </div>
+        <section className="rounded-lg border border-white/10 bg-white/[0.055] p-4">
+          <div className="flex items-center justify-between gap-3">
+            <h3 className="text-lg font-black">Submissions</h3>
+            <Badge className="border-teal-300/20 bg-teal-300/10 text-teal-100">{ordered.length}</Badge>
+          </div>
+          <div className="mt-4 space-y-2">
+            {isLoading ? <p className="text-sm text-slate-400">Loading responses...</p> : null}
+            {!isLoading && !ordered.length ? <p className="text-sm leading-6 text-slate-400">Responses will appear here after people submit your published form.</p> : null}
+            {ordered.map((response, index) => (
+              <button className={`w-full rounded-lg border p-3 text-left transition ${selected?.id === response.id ? "border-teal-300/50 bg-teal-300/10" : "border-white/10 bg-black/24 hover:border-white/20"}`} key={response.id} onClick={() => setSelectedId(response.id)} type="button">
+                <div className="flex items-center gap-3">
+                  <Users className="size-4 text-teal-200" />
+                  <p className="min-w-0 flex-1 truncate text-sm font-black">{response.respondentEmail ?? `Anonymous #${ordered.length - index}`}</p>
+                </div>
+                <p className="mt-2 text-xs text-slate-500">{formatDateTime(response.createdAt)} · {getAnswersForResponse(data, response.id).size} answers</p>
+              </button>
             ))}
+          </div>
+        </section>
+        <section className="rounded-lg border border-white/10 bg-white/[0.055] p-5">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h3 className="text-xl font-black">Response Detail</h3>
+              <p className="mt-1 text-sm text-slate-400">{selected ? selected.respondentEmail ?? "Anonymous respondent" : "No response selected"}</p>
+            </div>
+            {selected ? <Badge className="border-white/10 bg-white/10 text-slate-100">{formatDateTime(selected.createdAt)}</Badge> : null}
+          </div>
+          <div className="mt-5 space-y-4">
+            {!selected ? <p className="rounded-lg border border-dashed border-white/15 bg-black/20 p-4 text-sm text-slate-400">Select a submitted response to inspect every answer.</p> : null}
+            {selected
+              ? fields.map((field, index) => (
+                  <div className="rounded-lg border border-white/10 bg-black/24 p-4" key={`${field.id ?? field.label}-${index}`}>
+                    <p className="text-sm font-bold text-slate-400">Question {index + 1}</p>
+                    <p className="mt-1 font-black">{field.label}</p>
+                    <p className="mt-4 text-sm font-bold text-slate-400">Answer</p>
+                    <p className="mt-1 whitespace-pre-wrap text-teal-100">{formatAnswer(answers.get(field.id ?? ""))}</p>
+                  </div>
+                ))
+              : null}
           </div>
         </section>
       </div>
@@ -1567,14 +1661,71 @@ function SparkLine({ values }: { values: number[] }) {
   );
 }
 
-function SparkLineLarge() {
+function ResponseTrendGraph({ data, peak }: { data: Array<{ label: string; count: number }>; peak: number }) {
+  const points = data.map((item, index) => {
+    const x = data.length === 1 ? 300 : 28 + (index * 584) / (data.length - 1);
+    const y = 196 - (item.count / peak) * 150;
+    return `${x},${y}`;
+  });
+
   return (
-    <svg className="h-full w-full" viewBox="0 0 640 220">
-      <path d="M20 170 C 90 120, 120 150, 180 92 S 300 110, 360 58 S 500 80, 620 34" fill="none" stroke="rgba(45,212,191,0.9)" strokeLinecap="round" strokeWidth="5" />
-      <path d="M20 190 H620" stroke="rgba(255,255,255,0.08)" />
-      <path d="M20 140 H620" stroke="rgba(255,255,255,0.08)" />
-      <path d="M20 90 H620" stroke="rgba(255,255,255,0.08)" />
-    </svg>
+    <div className="flex h-full flex-col">
+      <svg className="min-h-0 flex-1" viewBox="0 0 640 220">
+        {[50, 100, 150, 200].map((y) => <path d={`M24 ${y} H616`} key={y} stroke="rgba(255,255,255,0.08)" />)}
+        <polyline fill="none" points={points.join(" ")} stroke="rgba(45,212,191,0.2)" strokeLinecap="round" strokeLinejoin="round" strokeWidth="12" />
+        <polyline fill="none" points={points.join(" ")} stroke="#2DD4BF" strokeLinecap="round" strokeLinejoin="round" strokeWidth="4" />
+        {data.map((item, index) => {
+          const x = data.length === 1 ? 300 : 28 + (index * 584) / (data.length - 1);
+          const y = 196 - (item.count / peak) * 150;
+          return <circle cx={x} cy={y} fill="#05070d" key={`${item.label}-${index}`} r="6" stroke="#2DD4BF" strokeWidth="3" />;
+        })}
+      </svg>
+      <div className="grid grid-cols-7 gap-2 text-[11px] font-semibold text-slate-500">
+        {data.map((item) => <span className="truncate" key={item.label}>{item.label}</span>)}
+      </div>
+    </div>
+  );
+}
+
+function QuestionCoverage({ data }: { data: Array<{ label: string; count: number; rate: number }> }) {
+  return (
+    <div className="mt-6 space-y-3">
+      {data.map((item, index) => (
+        <div className="rounded-lg border border-white/10 bg-black/24 p-3" key={`${item.label}-${index}`}>
+          <div className="flex items-center justify-between gap-3">
+            <p className="truncate text-sm font-black">{item.label}</p>
+            <span className="text-xs font-black text-teal-100">{item.rate}%</span>
+          </div>
+          <div className="mt-3 h-2 overflow-hidden rounded-full bg-white/10">
+            <div className="h-full rounded-full bg-teal-300" style={{ width: `${item.rate}%` }} />
+          </div>
+          <p className="mt-2 text-xs text-slate-500">{item.count} answers recorded</p>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function ResponseMix({ data, fields }: { data?: FormResponse; fields: DraftField[] }) {
+  const total = data?.responses.length ?? 0;
+  const anonymous = data?.responses.filter((response) => !response.respondentEmail).length ?? 0;
+  const answeredRequired = fields.filter((field) => field.required).length;
+  const items = [
+    { label: "Identified", value: total - anonymous, color: "bg-teal-300" },
+    { label: "Anonymous", value: anonymous, color: "bg-fuchsia-300" },
+    { label: "Required questions", value: answeredRequired, color: "bg-amber-300" },
+  ];
+
+  return (
+    <div className="mt-6 grid gap-4 md:grid-cols-3">
+      {items.map((item) => (
+        <div className="rounded-lg border border-white/10 bg-black/24 p-4" key={item.label}>
+          <div className={`h-1.5 w-16 rounded-full ${item.color}`} />
+          <p className="mt-4 text-sm font-semibold text-slate-400">{item.label}</p>
+          <p className="mt-1 text-3xl font-black">{item.value}</p>
+        </div>
+      ))}
+    </div>
   );
 }
 
@@ -1616,6 +1767,7 @@ function toPayload(draft: DraftForm) {
     slug: slugify(draft.slug) || `form-${Date.now().toString(36)}`,
     visibility: draft.visibility,
     status: draft.status,
+    themeSlug: draft.themeSlug ?? resolveTheme("glass").key,
     fields: draft.fields.map((field, order) => ({
       type: field.type,
       label: field.label.trim() || `Question ${order + 1}`,
@@ -1648,6 +1800,69 @@ function getTotals(forms: FormSummary[]) {
   const responses = forms.reduce((sum, item) => sum + (item.responseCount ?? 0), 0);
   const published = forms.filter((item) => item.status === "PUBLISHED").length;
   return { views, responses, published, forms: forms.length, completion: forms.length ? Math.min(92, 58 + published * 5) : 68 };
+}
+
+function buildResponseTrend(data?: FormResponse) {
+  const today = new Date();
+  const days = Array.from({ length: 7 }, (_, index) => {
+    const date = new Date(today);
+    date.setDate(today.getDate() - (6 - index));
+    const key = date.toISOString().slice(0, 10);
+    return { key, label: date.toLocaleDateString("en", { month: "short", day: "numeric" }), count: 0 };
+  });
+  const counts = new Map(days.map((day) => [day.key, day.count]));
+
+  data?.responses.forEach((response) => {
+    const key = new Date(response.createdAt).toISOString().slice(0, 10);
+    if (counts.has(key)) counts.set(key, (counts.get(key) ?? 0) + 1);
+  });
+
+  return days.map((day) => ({ ...day, count: counts.get(day.key) ?? 0 }));
+}
+
+function buildFieldCoverage(data: FormResponse | undefined, fields: DraftField[]) {
+  const total = data?.responses.length ?? 0;
+  return fields.map((field, index) => {
+    const count = data?.answers.filter((answer) => answer.fieldId === field.id).length ?? 0;
+    return {
+      label: field.label || `Question ${index + 1}`,
+      count,
+      rate: total ? Math.round((count / total) * 100) : 0,
+    };
+  });
+}
+
+function getAnalyticsInsight(coverage: Array<{ label: string; rate: number }>) {
+  if (!coverage.length) return "No question data yet";
+  const lowest = coverage.reduce((min, item) => (item.rate < min.rate ? item : min), coverage[0]!);
+  if (lowest.rate >= 90) return "The flow is performing cleanly";
+  return `Watch "${lowest.label}"`;
+}
+
+function getAnswersForResponse(data: FormResponse | undefined, responseId?: string) {
+  const answers = new Map<string, string>();
+  if (!responseId) return answers;
+  data?.answers
+    .filter((answer) => answer.responseId === responseId)
+    .forEach((answer) => answers.set(answer.fieldId, answer.value));
+  return answers;
+}
+
+function formatAnswer(value?: string) {
+  if (!value) return "No answer";
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    if (Array.isArray(parsed)) return parsed.join(", ");
+    if (typeof parsed === "boolean") return parsed ? "Yes" : "No";
+    if (parsed === null || parsed === undefined) return "No answer";
+    return String(parsed);
+  } catch {
+    return value;
+  }
+}
+
+function formatDateTime(value: Date | string) {
+  return new Intl.DateTimeFormat("en", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }).format(new Date(value));
 }
 
 function formatCompactNumber(value: number) {
