@@ -746,16 +746,177 @@
 .theme-preview {
   --mouse-x: 50%;
   --mouse-y: 30%;
+  --theme-ink: #ffffff;
+  --theme-muted: rgba(226, 232, 240, 0.72);
+  --theme-description: rgba(226, 232, 240, 0.82);
+  --theme-panel: rgba(5, 8, 18, 0.58);
+  --theme-panel-strong: rgba(3, 7, 18, 0.72);
+  --theme-field: rgba(2, 6, 23, 0.5);
+  --theme-control: rgba(255, 255, 255, 0.07);
+  --theme-border: rgba(255, 255, 255, 0.14);
+  --theme-border-strong: rgba(45, 212, 191, 0.5);
+  --theme-accent: #5eead4;
+  --theme-accent-2: #d946ef;
+  --theme-button-ink: #04201d;
+  --theme-radius: 8px;
+  --theme-shadow: 0 30px 120px rgba(0, 0, 0, 0.38);
   border-color: rgba(255, 255, 255, 0.14);
   color: white;
   isolation: isolate;
 }
 
 .theme-light {
-  background: radial-gradient(circle at var(--mouse-x) var(--mouse-y), rgba(255, 255, 255, 0.22), transparent 28%);
+  background: radial-gradient(
+    circle at var(--mouse-x) var(--mouse-y),
+    rgba(255, 255, 255, 0.22),
+    transparent 28%
+  );
   mix-blend-mode: screen;
   opacity: 0.75;
   transition: opacity 160ms ease;
+}
+
+.theme-form-card {
+  color: var(--theme-ink);
+  border: 1px solid var(--theme-border);
+  border-radius: var(--theme-radius);
+  background: var(--theme-panel);
+  box-shadow: var(--theme-shadow);
+  backdrop-filter: blur(22px) saturate(1.18);
+}
+
+.theme-form-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  border-radius: inherit;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.16), transparent 28%),
+    radial-gradient(
+      circle at 88% 8%,
+      color-mix(in srgb, var(--theme-accent) 28%, transparent),
+      transparent 22%
+    );
+  opacity: 0.8;
+}
+
+.theme-form-header {
+  position: relative;
+  border-bottom: 1px solid var(--theme-border);
+  background: var(--theme-panel-strong);
+}
+
+.theme-title {
+  color: var(--theme-ink);
+}
+
+.theme-description,
+.theme-muted {
+  color: var(--theme-description);
+}
+
+.theme-muted {
+  color: var(--theme-muted);
+}
+
+.theme-badge,
+.theme-metric {
+  color: var(--theme-ink);
+}
+
+.theme-badge {
+  border: 1px solid var(--theme-border-strong);
+  background: color-mix(in srgb, var(--theme-accent) 18%, transparent);
+  box-shadow: 0 0 28px color-mix(in srgb, var(--theme-accent) 22%, transparent);
+}
+
+.theme-progress-track {
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--theme-control) 78%, black 22%);
+  box-shadow: inset 0 0 0 1px var(--theme-border);
+}
+
+.theme-progress-fill {
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--theme-accent), var(--theme-accent-2));
+  box-shadow: 0 0 22px color-mix(in srgb, var(--theme-accent) 52%, transparent);
+}
+
+.theme-field-card {
+  position: relative;
+  border: 1px solid var(--theme-border);
+  border-radius: var(--theme-radius);
+  background: var(--theme-field);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+.theme-field-card:focus-within {
+  border-color: var(--theme-border-strong);
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--theme-accent) 32%, transparent),
+    0 14px 44px color-mix(in srgb, var(--theme-accent) 14%, transparent);
+}
+
+.theme-label {
+  color: var(--theme-ink);
+}
+
+.theme-control,
+.theme-option,
+.theme-rating-button {
+  color: var(--theme-ink);
+  border: 1px solid var(--theme-border);
+  border-radius: calc(var(--theme-radius) - 2px);
+  background: var(--theme-control);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+.theme-control::placeholder {
+  color: color-mix(in srgb, var(--theme-muted) 72%, transparent);
+}
+
+.theme-control:focus-visible {
+  border-color: var(--theme-border-strong);
+  box-shadow:
+    0 0 0 1px var(--theme-border-strong),
+    0 0 28px color-mix(in srgb, var(--theme-accent) 22%, transparent);
+}
+
+.theme-control option {
+  color: #0f172a;
+}
+
+.theme-control-icon {
+  color: var(--theme-muted);
+}
+
+.theme-option:hover,
+.theme-rating-button:hover,
+.theme-rating-button.is-selected {
+  border-color: var(--theme-border-strong);
+  background: color-mix(in srgb, var(--theme-accent) 28%, var(--theme-control));
+  color: var(--theme-ink);
+}
+
+.theme-rating-button.is-selected {
+  color: var(--theme-button-ink);
+  background: linear-gradient(135deg, var(--theme-accent), var(--theme-accent-2));
+  box-shadow: 0 0 24px color-mix(in srgb, var(--theme-accent) 36%, transparent);
+}
+
+.theme-submit-button,
+.theme-success-icon {
+  border-radius: calc(var(--theme-radius) - 1px);
+  color: var(--theme-button-ink);
+  background: linear-gradient(135deg, var(--theme-accent), var(--theme-accent-2));
+  box-shadow:
+    0 18px 48px color-mix(in srgb, var(--theme-accent) 28%, transparent),
+    inset 0 1px 0 rgba(255, 255, 255, 0.36);
+}
+
+.theme-submit-button:hover {
+  filter: brightness(1.08) saturate(1.08);
 }
 
 .theme-input,
@@ -766,6 +927,24 @@
 }
 
 .theme-cyberpunk {
+  --theme-ink: #f8fbff;
+  --theme-muted: rgba(165, 243, 252, 0.72);
+  --theme-description: rgba(221, 214, 254, 0.86);
+  --theme-panel: linear-gradient(145deg, rgba(8, 12, 30, 0.86), rgba(44, 8, 58, 0.68));
+  --theme-panel-strong: linear-gradient(
+    135deg,
+    rgba(255, 0, 255, 0.13),
+    rgba(0, 229, 255, 0.08) 48%,
+    rgba(0, 0, 0, 0.24)
+  );
+  --theme-field:
+    linear-gradient(135deg, rgba(255, 0, 255, 0.08), rgba(0, 229, 255, 0.07)), rgba(4, 8, 22, 0.62);
+  --theme-control: rgba(4, 9, 26, 0.74);
+  --theme-border: rgba(0, 229, 255, 0.22);
+  --theme-border-strong: rgba(255, 0, 255, 0.62);
+  --theme-accent: #00e5ff;
+  --theme-accent-2: #ff00ff;
+  --theme-button-ink: #030812;
   font-family: "Space Grotesk", "Orbitron", var(--font-geist-sans), sans-serif;
   border-color: rgba(255, 0, 255, 0.35);
   box-shadow:
@@ -784,6 +963,30 @@
   text-shadow:
     0 0 18px rgba(0, 229, 255, 0.44),
     0 0 24px rgba(255, 0, 255, 0.26);
+}
+
+.theme-cyberpunk .theme-field-card::after {
+  content: "";
+  position: absolute;
+  inset: 8px;
+  pointer-events: none;
+  border: 1px solid rgba(0, 229, 255, 0.08);
+  clip-path: polygon(
+    0 0,
+    28px 0,
+    28px 1px,
+    1px 1px,
+    1px 28px,
+    0 28px,
+    0 0,
+    100% 0,
+    100% 100%,
+    calc(100% - 28px) 100%,
+    calc(100% - 28px) calc(100% - 1px),
+    calc(100% - 1px) calc(100% - 1px),
+    calc(100% - 1px) calc(100% - 28px),
+    100% calc(100% - 28px)
+  );
 }
 
 .cyber-grid {
@@ -810,6 +1013,23 @@
 }
 
 .theme-sakura {
+  --theme-ink: #4a1232;
+  --theme-muted: rgba(131, 24, 67, 0.68);
+  --theme-description: rgba(76, 29, 149, 0.72);
+  --theme-panel: linear-gradient(145deg, rgba(255, 255, 255, 0.72), rgba(253, 242, 248, 0.56));
+  --theme-panel-strong: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.62),
+    rgba(249, 168, 212, 0.24)
+  );
+  --theme-field: rgba(255, 255, 255, 0.5);
+  --theme-control: rgba(255, 255, 255, 0.58);
+  --theme-border: rgba(249, 168, 212, 0.54);
+  --theme-border-strong: rgba(219, 39, 119, 0.48);
+  --theme-accent: #f9a8d4;
+  --theme-accent-2: #c084fc;
+  --theme-button-ink: #4a1232;
+  --theme-shadow: 0 30px 100px rgba(219, 39, 119, 0.22);
   color: #4a1232;
   font-family: "Poppins", "Satoshi", var(--font-geist-sans), sans-serif;
   border-color: rgba(249, 168, 212, 0.72);
@@ -822,6 +1042,12 @@
   border-color: rgba(249, 168, 212, 0.62);
   background: rgba(255, 255, 255, 0.42);
   box-shadow: 0 18px 50px rgba(249, 168, 212, 0.28);
+}
+
+.theme-sakura .theme-form-card {
+  box-shadow:
+    0 30px 100px rgba(219, 39, 119, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.6);
 }
 
 .sakura-clouds {
@@ -848,9 +1074,39 @@
 }
 
 .theme-hacker {
+  --theme-ink: #d9ffe6;
+  --theme-muted: rgba(74, 222, 128, 0.7);
+  --theme-description: rgba(187, 247, 208, 0.74);
+  --theme-panel: rgba(0, 10, 4, 0.82);
+  --theme-panel-strong: linear-gradient(180deg, rgba(0, 255, 102, 0.08), rgba(0, 0, 0, 0.54));
+  --theme-field: rgba(0, 20, 8, 0.68);
+  --theme-control: rgba(0, 0, 0, 0.5);
+  --theme-border: rgba(0, 255, 102, 0.22);
+  --theme-border-strong: rgba(0, 255, 102, 0.68);
+  --theme-accent: #00ff66;
+  --theme-accent-2: #86efac;
+  --theme-button-ink: #001b08;
+  --theme-radius: 3px;
   font-family: "JetBrains Mono", var(--font-geist-mono), monospace;
   border-color: rgba(0, 255, 102, 0.42);
   text-shadow: 0 0 10px rgba(0, 255, 102, 0.26);
+}
+
+.theme-hacker .theme-form-card {
+  box-shadow:
+    0 0 0 1px rgba(0, 255, 102, 0.1),
+    0 28px 110px rgba(0, 0, 0, 0.5),
+    inset 0 0 34px rgba(0, 255, 102, 0.08);
+}
+
+.theme-hacker .theme-form-header::before {
+  content: "$ polliq --collect-response";
+  display: block;
+  margin-bottom: 14px;
+  color: rgba(134, 239, 172, 0.82);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
 }
 
 .matrix-rain::before {
@@ -867,13 +1123,46 @@
 }
 
 .crt-lines {
-  background: repeating-linear-gradient(to bottom, rgba(255, 255, 255, 0.06) 0 1px, transparent 1px 4px);
+  background: repeating-linear-gradient(
+    to bottom,
+    rgba(255, 255, 255, 0.06) 0 1px,
+    transparent 1px 4px
+  );
   mix-blend-mode: overlay;
 }
 
 .theme-space {
+  --theme-ink: #f0f9ff;
+  --theme-muted: rgba(186, 230, 253, 0.72);
+  --theme-description: rgba(224, 242, 254, 0.78);
+  --theme-panel: linear-gradient(145deg, rgba(3, 7, 18, 0.86), rgba(15, 23, 42, 0.72));
+  --theme-panel-strong: linear-gradient(
+    135deg,
+    rgba(56, 189, 248, 0.12),
+    rgba(129, 140, 248, 0.08)
+  );
+  --theme-field: rgba(7, 17, 42, 0.68);
+  --theme-control: rgba(2, 8, 23, 0.54);
+  --theme-border: rgba(125, 211, 252, 0.22);
+  --theme-border-strong: rgba(56, 189, 248, 0.62);
+  --theme-accent: #38bdf8;
+  --theme-accent-2: #818cf8;
+  --theme-button-ink: #04111f;
   font-family: "Orbitron", var(--font-geist-sans), sans-serif;
   border-color: rgba(56, 189, 248, 0.36);
+}
+
+.theme-space .theme-form-card {
+  box-shadow:
+    0 30px 120px rgba(0, 0, 0, 0.44),
+    inset 0 0 70px rgba(56, 189, 248, 0.08);
+}
+
+.theme-space .theme-field-card {
+  background-image:
+    linear-gradient(90deg, rgba(56, 189, 248, 0.09) 1px, transparent 1px),
+    linear-gradient(rgba(56, 189, 248, 0.06) 1px, transparent 1px);
+  background-size: 26px 26px;
 }
 
 .space-stars {
@@ -894,14 +1183,53 @@
 }
 
 .theme-gaming {
+  --theme-ink: #fff7ed;
+  --theme-muted: rgba(254, 215, 170, 0.76);
+  --theme-description: rgba(220, 252, 231, 0.72);
+  --theme-panel: linear-gradient(145deg, rgba(17, 24, 39, 0.9), rgba(59, 16, 32, 0.7));
+  --theme-panel-strong: linear-gradient(
+    135deg,
+    rgba(239, 68, 68, 0.14),
+    rgba(245, 158, 11, 0.12),
+    rgba(16, 185, 129, 0.09)
+  );
+  --theme-field: rgba(12, 18, 28, 0.68);
+  --theme-control: rgba(255, 255, 255, 0.06);
+  --theme-border: rgba(245, 158, 11, 0.24);
+  --theme-border-strong: rgba(245, 158, 11, 0.72);
+  --theme-accent: #f59e0b;
+  --theme-accent-2: #10b981;
+  --theme-button-ink: #10120a;
+  --theme-radius: 6px;
   font-family: "Rajdhani", "Exo 2", var(--font-geist-sans), sans-serif;
   border-color: rgba(245, 158, 11, 0.38);
   animation: gaming-border 2.8s ease-in-out infinite;
 }
 
+.theme-gaming .theme-title {
+  text-transform: uppercase;
+}
+
+.theme-gaming .theme-field-card {
+  clip-path: polygon(
+    0 0,
+    calc(100% - 14px) 0,
+    100% 14px,
+    100% 100%,
+    14px 100%,
+    0 calc(100% - 14px)
+  );
+}
+
 .gaming-hud {
   background-image:
-    linear-gradient(90deg, rgba(239, 68, 68, 0.24), transparent 24%, transparent 74%, rgba(16, 185, 129, 0.2)),
+    linear-gradient(
+      90deg,
+      rgba(239, 68, 68, 0.24),
+      transparent 24%,
+      transparent 74%,
+      rgba(16, 185, 129, 0.2)
+    ),
     linear-gradient(rgba(245, 158, 11, 0.16) 1px, transparent 1px);
   background-size:
     100% 100%,
@@ -909,6 +1237,23 @@
 }
 
 .theme-liquid {
+  --theme-ink: #0f172a;
+  --theme-muted: rgba(51, 65, 85, 0.72);
+  --theme-description: rgba(30, 41, 59, 0.72);
+  --theme-panel: linear-gradient(145deg, rgba(255, 255, 255, 0.54), rgba(255, 255, 255, 0.28));
+  --theme-panel-strong: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.5),
+    rgba(223, 247, 255, 0.28)
+  );
+  --theme-field: rgba(255, 255, 255, 0.38);
+  --theme-control: rgba(255, 255, 255, 0.42);
+  --theme-border: rgba(255, 255, 255, 0.66);
+  --theme-border-strong: rgba(124, 58, 237, 0.42);
+  --theme-accent: #ffffff;
+  --theme-accent-2: #7c3aed;
+  --theme-button-ink: #111827;
+  --theme-shadow: 0 30px 100px rgba(15, 23, 42, 0.16);
   color: #0f172a;
   border-color: rgba(255, 255, 255, 0.78);
 }
@@ -934,7 +1279,25 @@
 }
 
 .theme-startup {
+  --theme-ink: #f8fafc;
+  --theme-muted: rgba(203, 213, 225, 0.72);
+  --theme-description: rgba(226, 232, 240, 0.78);
+  --theme-panel: linear-gradient(145deg, rgba(15, 23, 42, 0.88), rgba(24, 37, 83, 0.7));
+  --theme-panel-strong: linear-gradient(135deg, rgba(99, 102, 241, 0.12), rgba(6, 182, 212, 0.1));
+  --theme-field: rgba(15, 23, 42, 0.62);
+  --theme-control: rgba(255, 255, 255, 0.07);
+  --theme-border: rgba(148, 163, 184, 0.22);
+  --theme-border-strong: rgba(6, 182, 212, 0.56);
+  --theme-accent: #06b6d4;
+  --theme-accent-2: #6366f1;
+  --theme-button-ink: #f8fafc;
   border-color: rgba(99, 102, 241, 0.36);
+}
+
+.theme-startup .theme-form-card {
+  box-shadow:
+    0 30px 110px rgba(2, 6, 23, 0.46),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
 }
 
 .startup-grid {
@@ -946,6 +1309,20 @@
 }
 
 .theme-xp {
+  --theme-ink: #08183b;
+  --theme-muted: rgba(8, 24, 59, 0.68);
+  --theme-description: rgba(8, 24, 59, 0.74);
+  --theme-panel: #ece9d8;
+  --theme-panel-strong: linear-gradient(180deg, #2f88ff 0%, #1859d6 48%, #0b3fa9 100%);
+  --theme-field: #f7f4e9;
+  --theme-control: linear-gradient(#ffffff, #edf5ff);
+  --theme-border: #0b4bb3;
+  --theme-border-strong: #f59e0b;
+  --theme-accent: #f7d117;
+  --theme-accent-2: #58c241;
+  --theme-button-ink: #08183b;
+  --theme-radius: 5px;
+  --theme-shadow: 8px 10px 0 rgba(0, 0, 0, 0.26), 0 30px 90px rgba(0, 0, 0, 0.24);
   color: #08183b;
   font-family: Tahoma, Verdana, var(--font-geist-sans), sans-serif;
   border-color: rgba(255, 255, 255, 0.58);
@@ -963,6 +1340,24 @@
     2px 2px 0 rgba(0, 0, 0, 0.28);
 }
 
+.theme-xp .theme-form-header .theme-title,
+.theme-xp .theme-form-header .theme-description,
+.theme-xp .theme-form-header .theme-muted,
+.theme-xp .theme-form-header .theme-metric {
+  color: #ffffff;
+  text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.36);
+}
+
+.theme-xp .theme-form-card,
+.theme-xp .theme-field-card,
+.theme-xp .theme-control,
+.theme-xp .theme-option,
+.theme-xp .theme-rating-button {
+  box-shadow:
+    inset 1px 1px 0 #ffffff,
+    inset -1px -1px 0 rgba(0, 0, 0, 0.22);
+}
+
 .xp-clouds {
   background:
     radial-gradient(circle at 24% 22%, rgba(255, 255, 255, 0.84), transparent 12%),
@@ -971,6 +1366,18 @@
 }
 
 .theme-glass {
+  --theme-ink: #ffffff;
+  --theme-muted: rgba(226, 232, 240, 0.7);
+  --theme-description: rgba(226, 232, 240, 0.82);
+  --theme-panel: linear-gradient(145deg, rgba(255, 255, 255, 0.11), rgba(255, 255, 255, 0.05));
+  --theme-panel-strong: linear-gradient(135deg, rgba(45, 212, 191, 0.1), rgba(217, 70, 239, 0.08));
+  --theme-field: rgba(255, 255, 255, 0.07);
+  --theme-control: rgba(255, 255, 255, 0.06);
+  --theme-border: rgba(255, 255, 255, 0.16);
+  --theme-border-strong: rgba(45, 212, 191, 0.54);
+  --theme-accent: #2dd4bf;
+  --theme-accent-2: #d946ef;
+  --theme-button-ink: #031b1a;
   border-color: rgba(255, 255, 255, 0.16);
   box-shadow:
     0 28px 100px rgba(0, 0, 0, 0.38),
