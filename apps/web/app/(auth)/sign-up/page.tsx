@@ -12,19 +12,24 @@ import {
   UserRound,
 } from "lucide-react";
 import Link from "next/link";
-import { useState, type ChangeEvent, type FormEvent } from "react";
-import { useSignUp } from "~/hooks/api/auth";
-import { trpc } from "~/trpc/client";
+import { useRouter } from "next/navigation";
+import { useEffect, useState, type ChangeEvent, type FormEvent } from "react";
+import { useSignUp, useUserInfo } from "~/hooks/api/auth";
 
 export default function SignUpPage() {
-
-  const { createUserWithEmailAndPasswordAsync } = useSignUp();
+  const router = useRouter();
+  const { createUserWithEmailAndPasswordAsync, error, status } = useSignUp();
+  const { user } = useUserInfo();
 
   const [formValues, setFormValues] = useState({
     name: "",
     email: "",
     password: "",
   });
+
+  useEffect(() => {
+    if (user) router.replace("/dashboard");
+  }, [router, user]);
 
   const handleChange = (event: ChangeEvent<HTMLInputElement>) => {
     const { name, value } = event.target;
@@ -38,10 +43,15 @@ export default function SignUpPage() {
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
-    // console.log(formValues);
-    const { id } = await createUserWithEmailAndPasswordAsync({ email: formValues.email, fullName: formValues.name, password: formValues.password });
-    // console.log(`user create a account with id: ${id}`);
+    await createUserWithEmailAndPasswordAsync({
+      email: formValues.email,
+      fullName: formValues.name,
+      password: formValues.password,
+    });
+    router.replace("/sign-in");
   };
+
+  const isSubmitting = status === "pending";
 
   return (
     <AuthCard>
@@ -59,6 +69,12 @@ export default function SignUpPage() {
       <Divider />
 
       <form className="space-y-3.5" onSubmit={handleSubmit}>
+        {error ? (
+          <div className="rounded-lg border border-red-400/25 bg-red-500/10 px-4 py-3 text-sm font-medium text-red-100">
+            {error.message}
+          </div>
+        ) : null}
+
         <label className="block">
           <span className="mb-2 block text-sm font-semibold text-slate-300">Name</span>
           <span className="relative block">
@@ -105,10 +121,11 @@ export default function SignUpPage() {
         </label>
 
         <button
+          disabled={isSubmitting}
           className="group flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-white font-black text-[#050816] shadow-[0_0_42px_rgba(139,92,246,0.46)] transition hover:scale-[1.01] hover:shadow-[0_0_64px_rgba(34,211,238,0.5)] sm:h-12"
           type="submit"
         >
-          Create account
+          {isSubmitting ? "Creating account..." : "Create account"}
           <ArrowRight className="size-4 transition group-hover:translate-x-1" />
         </button>
       </form>

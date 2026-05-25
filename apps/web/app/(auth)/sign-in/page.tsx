@@ -12,8 +12,9 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useEffect } from "react";
 import { useForm } from "react-hook-form";
-import { useSignIn } from "~/hooks/api/auth";
+import { useSignIn, useUserInfo } from "~/hooks/api/auth";
 
 type SignInFormValues = {
   email: string;
@@ -23,6 +24,7 @@ type SignInFormValues = {
 export default function SignInPage() {
   const router = useRouter();
   const { error, signInUserWithEmailAndPasswordAsync, status } = useSignIn();
+  const { user } = useUserInfo();
   const { register, handleSubmit } = useForm<SignInFormValues>({
     defaultValues: {
       email: "",
@@ -30,9 +32,13 @@ export default function SignInPage() {
     },
   });
 
+  useEffect(() => {
+    if (user) router.replace("/dashboard");
+  }, [router, user]);
+
   const onSubmit = async (values: SignInFormValues) => {
     await signInUserWithEmailAndPasswordAsync(values);
-    router.push("/dashboard");
+    router.replace("/dashboard");
   };
 
   const isSubmitting = status === "pending";
