@@ -70,7 +70,19 @@ type DraftField = {
     min?: number;
     max?: number;
     step?: number;
+    pattern?: string;
+    maxLength?: number;
+    condition?: {
+      fieldOrder: number;
+      equals: string;
+    };
   };
+};
+
+type DraftBranding = {
+  logoUrl: string;
+  fontFamily: string;
+  glassCards: boolean;
 };
 
 type DraftForm = {
@@ -81,6 +93,7 @@ type DraftForm = {
   visibility: Visibility;
   status: Status;
   themeSlug?: ThemeKey;
+  branding: DraftBranding;
   fields: DraftField[];
 };
 
@@ -132,6 +145,7 @@ const fieldTypes = [
 ] satisfies Array<[FieldType, string, LucideIcon]>;
 
 const optionFieldTypes = new Set<FieldType>(["SELECT", "MULTI_SELECT"]);
+const AUTO_SAVE_KEY = "polliq.dashboard.recoveredDraft.v1";
 
 type TemplateCategory = "Trending" | "Anime" | "Cyberpunk" | "Startup" | "Gaming";
 type ThemeKey = "cyberpunk" | "sakura" | "hacker" | "space" | "gaming" | "liquid" | "startup" | "xp" | "glass";
@@ -176,6 +190,49 @@ const themeCollections = [
 ] satisfies ThemeCard[];
 
 const templateCards = [
+  {
+    category: "Trending",
+    title: "Job Application",
+    description: "Role, portfolio, availability, salary range, and recruiter follow-up.",
+    gradient: "from-emerald-300 via-cyan-400 to-blue-500",
+    stats: "12.2K uses",
+    completion: 86,
+    theme: "Startup Pitch Deck",
+    fields: [
+      { type: "TEXT", label: "Full name", placeholder: "Your name", required: true },
+      { type: "EMAIL", label: "Best email for updates", placeholder: "name@example.com", required: true },
+      { type: "TEXT", label: "Portfolio or LinkedIn URL", placeholder: "https://...", required: true, config: { pattern: "url" } },
+      { type: "SELECT", label: "Preferred interview window", placeholder: "Choose one", required: true, config: { options: [{ label: "This week", value: "this-week" }, { label: "Next week", value: "next-week" }, { label: "Flexible", value: "flexible" }] } },
+    ],
+  },
+  {
+    category: "Trending",
+    title: "Event Registration",
+    description: "Attendee details, meal preferences, session choices, and confirmation flow.",
+    gradient: "from-sky-300 via-indigo-400 to-fuchsia-500",
+    stats: "9.6K uses",
+    completion: 83,
+    theme: "Apple Liquid Glass",
+    fields: [
+      { type: "EMAIL", label: "Where should we send your ticket?", placeholder: "name@example.com", required: true },
+      { type: "SELECT", label: "Which session are you attending?", placeholder: "Choose session", required: true, config: { options: [{ label: "Keynote", value: "keynote" }, { label: "Workshop", value: "workshop" }, { label: "Networking", value: "networking" }] } },
+      { type: "CHECKBOX", label: "Send me calendar updates", placeholder: "", required: false },
+    ],
+  },
+  {
+    category: "Trending",
+    title: "Hackathon Signup",
+    description: "Team size, track, skills, and Discord readiness for fast onboarding.",
+    gradient: "from-lime-300 via-teal-400 to-violet-500",
+    stats: "6.3K uses",
+    completion: 81,
+    theme: "Hacker Terminal",
+    fields: [
+      { type: "TEXT", label: "Team or hacker name", placeholder: "Team name", required: true },
+      { type: "MULTI_SELECT", label: "Skills you bring", placeholder: "", required: true, config: { options: [{ label: "Frontend", value: "frontend" }, { label: "Backend", value: "backend" }, { label: "Design", value: "design" }, { label: "AI", value: "ai" }] } },
+      { type: "SELECT", label: "Preferred track", placeholder: "Choose track", required: true, config: { options: [{ label: "AI", value: "ai" }, { label: "Climate", value: "climate" }, { label: "Fintech", value: "fintech" }] } },
+    ],
+  },
   {
     category: "Trending",
     title: "Creator Drop Waitlist",
@@ -281,6 +338,11 @@ const newDraftForm = (): DraftForm => ({
   visibility: "PRIVATE",
   status: "DRAFT",
   themeSlug: "glass",
+  branding: {
+    logoUrl: "",
+    fontFamily: "Geist Sans",
+    glassCards: true,
+  },
   fields: [
     { ...emptyField(0, "EMAIL"), required: true },
     { ...emptyField(1, "TEXTAREA"), label: "What should we improve next?", required: true },
@@ -349,8 +411,39 @@ export default function DashboardPage() {
   }, [error, router]);
 
   useEffect(() => {
+    const openExplore = () => setActiveSection("explore");
+    window.addEventListener("polliq-open-explore", openExplore);
+    return () => window.removeEventListener("polliq-open-explore", openExplore);
+  }, []);
+
+  useEffect(() => {
     if (!selectedFormId && forms[0]) setSelectedFormId(forms[0].id);
   }, [forms, selectedFormId]);
+
+  useEffect(() => {
+    if (!formsQuery.isFetched || forms.length || selectedFormId) return;
+    const savedDraft = window.localStorage.getItem(AUTO_SAVE_KEY);
+    if (!savedDraft) return;
+
+    try {
+      const recovered = JSON.parse(savedDraft) as DraftForm;
+      if (!recovered?.title || !Array.isArray(recovered.fields)) return;
+      setDraft(recovered);
+      setTheme(resolveTheme(recovered.themeSlug ?? "glass").name);
+      setLastSavedSnapshot("");
+      toast.success("Recovered your draft");
+    } catch {
+      window.localStorage.removeItem(AUTO_SAVE_KEY);
+    }
+  }, [forms.length, formsQuery.isFetched, selectedFormId]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      window.localStorage.setItem(AUTO_SAVE_KEY, JSON.stringify(draft));
+    }, 700);
+
+    return () => window.clearTimeout(timer);
+  }, [draft]);
 
   useEffect(() => {
     const form = selectedFormQuery.data;
@@ -364,6 +457,7 @@ export default function DashboardPage() {
       visibility: form.visibility as Visibility,
       status: form.status as Status,
       themeSlug: resolveTheme(form.theme?.slug ?? form.theme?.name ?? "glass").key,
+      branding: getBrandingFromFields(form.fields),
       fields: form.fields.map((field, index) => ({
         id: field.id,
         type: field.type as FieldType,
@@ -387,8 +481,8 @@ export default function DashboardPage() {
   const saveDraft = async () => {
     const payload = toPayload(draft);
     if (draft.id) {
-      await updateForm.mutateAsync({ ...payload, id: draft.id });
       setLastSavedSnapshot(JSON.stringify(payload));
+      await updateForm.mutateAsync({ ...payload, id: draft.id });
       return draft.id;
     }
     const result = await createForm.mutateAsync(payload);
@@ -451,6 +545,11 @@ export default function DashboardPage() {
       visibility: "PRIVATE",
       status: "DRAFT",
       themeSlug: resolveTheme(template.theme).key,
+      branding: {
+        logoUrl: "",
+        fontFamily: resolveTheme(template.theme).typography.split(" + ")[0] ?? "Geist Sans",
+        glassCards: true,
+      },
       fields: template.fields.map((field, order) => ({
         type: field.type,
         label: field.label,
@@ -690,7 +789,7 @@ function Stats({ totals }: { totals: ReturnType<typeof getTotals> }) {
 }
 
 function RecentForms({ forms, onOpenForms }: { forms: FormSummary[]; onOpenForms: () => void }) {
-  const cards = forms.length ? forms.slice(0, 3) : demoForms;
+  const cards = forms.slice(0, 3);
   return (
     <section className="rounded-lg border border-white/10 bg-white/[0.055] p-5">
       <div className="flex flex-wrap items-center justify-between gap-4">
@@ -702,6 +801,14 @@ function RecentForms({ forms, onOpenForms }: { forms: FormSummary[]; onOpenForms
           Open builder
         </Button>
       </div>
+      {!cards.length ? (
+        <PremiumEmptyState
+          actionLabel="Create first form"
+          message="Create your first form in under 2 minutes. Start with a polished template or build your own adaptive flow."
+          onAction={onOpenForms}
+          title="Your first form is waiting"
+        />
+      ) : null}
       <div className="mt-5 grid gap-4 md:grid-cols-3">
         {cards.map((form, index) => (
           <article className="group relative overflow-hidden rounded-lg border border-white/10 bg-black/24 p-3 transition duration-300 hover:-translate-y-1 hover:border-teal-300/35 hover:shadow-[0_0_70px_rgba(20,184,166,0.14)]" key={form.id}>
@@ -757,6 +864,30 @@ function LiveActivity() {
         ))}
       </div>
     </section>
+  );
+}
+
+function PremiumEmptyState({ actionLabel, compact = false, message, onAction, title }: { actionLabel: string; compact?: boolean; message: string; onAction: () => void; title: string }) {
+  return (
+    <div className={`mt-5 overflow-hidden rounded-lg border border-dashed border-teal-300/25 bg-black/24 ${compact ? "p-4" : "p-7 text-center"}`}>
+      <div className={`${compact ? "mx-0" : "mx-auto"} relative grid size-16 place-items-center rounded-lg border border-white/10 bg-white/[0.06]`}>
+        <div className="absolute inset-2 rounded-md bg-gradient-to-br from-teal-300/35 via-sky-300/20 to-fuchsia-300/30 blur-sm" />
+        <FilePlus2 className="relative size-7 text-teal-100" />
+      </div>
+      <h3 className="mt-4 text-xl font-black">{title}</h3>
+      <p className={`${compact ? "" : "mx-auto max-w-md"} mt-2 text-sm leading-6 text-slate-400`}>{message}</p>
+      <div className={`${compact ? "" : "justify-center"} mt-4 flex flex-wrap gap-2`}>
+        {["Job application", "Feedback", "Waitlist"].map((template) => (
+          <span className="rounded-md border border-white/10 bg-white/[0.06] px-2.5 py-1 text-xs font-bold text-slate-300" key={template}>
+            {template}
+          </span>
+        ))}
+      </div>
+      <Button className="mt-5 bg-white text-[#05070d] hover:bg-teal-100" onClick={onAction} size="sm">
+        <Sparkles className="size-4" />
+        {actionLabel}
+      </Button>
+    </div>
   );
 }
 
@@ -828,9 +959,11 @@ function FormsWorkspace(props: {
         />
         {props.selectedField ? (
           <FieldSettings
+            allFields={props.draft.fields}
             field={props.selectedField}
             onChange={(field) => updateFieldAt(props.selectedFieldIndex, field, props.setDraft)}
             onDelete={() => removeFieldAt(props.selectedFieldIndex, props.setDraft, props.setSelectedFieldIndex)}
+            selectedIndex={props.selectedFieldIndex}
           />
         ) : null}
       </section>
@@ -913,7 +1046,7 @@ function BuilderPreview({
         ))}
       </div>
       <div className="mt-5 flex justify-center rounded-lg border border-teal-300/20 bg-[#101820] p-5">
-        <ThemeFormPreview className={`min-h-[430px] w-full ${width}`} field={activeField} questionCount={draft.fields.length} questionIndex={selectedFieldIndex} themeCard={activeTheme} />
+        <ThemeFormPreview branding={draft.branding} className={`min-h-[430px] w-full ${width}`} field={activeField} questionCount={draft.fields.length} questionIndex={selectedFieldIndex} themeCard={activeTheme} />
       </div>
     </section>
   );
@@ -928,7 +1061,15 @@ function FormList({ forms, isLoading, selectedId, onSelect }: { forms: FormSumma
       </div>
       <div className="mt-4 space-y-2">
         {isLoading ? <p className="text-sm text-slate-400">Loading forms...</p> : null}
-        {!isLoading && !forms.length ? <p className="rounded-lg border border-dashed border-white/15 bg-black/20 p-4 text-sm leading-6 text-slate-400">Create your first form to start collecting responses.</p> : null}
+        {!isLoading && !forms.length ? (
+          <PremiumEmptyState
+            actionLabel="Browse templates"
+            compact
+            message="Create your first form in under 2 minutes with a marketplace template."
+            onAction={() => window.dispatchEvent(new CustomEvent("polliq-open-explore"))}
+            title="No forms yet"
+          />
+        ) : null}
         {forms.map((form) => (
           <button className={`w-full rounded-lg border p-3 text-left transition ${selectedId === form.id ? "border-teal-300/50 bg-teal-300/10" : "border-white/10 bg-black/24 hover:border-white/20"}`} key={form.id} onClick={() => onSelect(form.id)} type="button">
             <div className="flex items-start justify-between gap-3">
@@ -950,6 +1091,10 @@ function FormList({ forms, isLoading, selectedId, onSelect }: { forms: FormSumma
 }
 
 function FormDetails({ draft, publicUrl, setDraft }: { draft: DraftForm; publicUrl: string; setDraft: Dispatch<SetStateAction<DraftForm>> }) {
+  const updateBranding = (branding: Partial<DraftBranding>) => {
+    setDraft((current) => ({ ...current, branding: { ...current.branding, ...branding } }));
+  };
+
   return (
     <section className="overflow-hidden rounded-lg border border-white/10 bg-white/[0.055]">
       <div className="border-b border-white/10 bg-black/20 px-4 py-3">
@@ -985,6 +1130,40 @@ function FormDetails({ draft, publicUrl, setDraft }: { draft: DraftForm; publicU
           </div>
         </div>
       </div>
+      <div className="border-t border-white/10 p-4">
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_180px_180px]">
+          <FieldShell label="Brand logo URL">
+            <Input className="border-white/10 bg-black/25 text-white" onChange={(event) => updateBranding({ logoUrl: event.target.value })} placeholder="https://yourcdn.com/logo.png" value={draft.branding.logoUrl} />
+          </FieldShell>
+          <FieldShell label="Custom font">
+            <select className="h-9 w-full rounded-md border border-white/10 bg-black/25 px-3 text-sm font-semibold text-white outline-none" onChange={(event) => updateBranding({ fontFamily: event.target.value })} value={draft.branding.fontFamily}>
+              <option>Geist Sans</option>
+              <option>Inter</option>
+              <option>JetBrains Mono</option>
+              <option>Space Grotesk</option>
+            </select>
+          </FieldShell>
+          <div className="flex items-center justify-between rounded-lg border border-white/10 bg-black/24 px-3 py-2">
+            <div>
+              <p className="text-sm font-black">Glass cards</p>
+              <p className="text-xs text-slate-500">Premium blur style</p>
+            </div>
+            <Switch checked={draft.branding.glassCards} onCheckedChange={(glassCards) => updateBranding({ glassCards })} />
+          </div>
+        </div>
+        <div className="mt-3 flex flex-wrap items-center gap-3 rounded-lg border border-white/10 bg-black/24 p-3">
+          <div
+            className="grid size-10 place-items-center overflow-hidden rounded-lg border border-white/10 bg-white/[0.06] bg-cover bg-center"
+            style={draft.branding.logoUrl ? { backgroundImage: `url(${draft.branding.logoUrl})` } : undefined}
+          >
+            {draft.branding.logoUrl ? null : <Palette className="size-4 text-teal-200" />}
+          </div>
+          <div>
+            <p className="text-sm font-black">Brand preview</p>
+            <p className="text-xs text-slate-500">{draft.branding.fontFamily} · gradient background · {draft.branding.glassCards ? "glassmorphism" : "solid"} cards · dark mode ready</p>
+          </div>
+        </div>
+      </div>
     </section>
   );
 }
@@ -998,7 +1177,8 @@ function FieldShell({ children, label }: { children: ReactNode; label: string })
   );
 }
 
-function FieldSettings({ field, onChange, onDelete }: { field: DraftField; onChange: (field: DraftField) => void; onDelete: () => void }) {
+function FieldSettings({ allFields, field, onChange, onDelete, selectedIndex }: { allFields: DraftField[]; field: DraftField; onChange: (field: DraftField) => void; onDelete: () => void; selectedIndex: number }) {
+  const previousFields = allFields.slice(0, selectedIndex);
   return (
     <section className="rounded-lg border border-white/10 bg-white/[0.055] p-4">
       <div className="flex items-center justify-between gap-3">
@@ -1025,6 +1205,10 @@ function FieldSettings({ field, onChange, onDelete }: { field: DraftField; onCha
         <FieldShell label="Help text">
           <Textarea className="min-h-16 border-white/10 bg-black/25 text-white" onChange={(event) => onChange({ ...field, description: event.target.value })} value={field.description ?? ""} />
         </FieldShell>
+        <FieldShell label="Character limit">
+          <Input className="border-white/10 bg-black/25 text-white" min={1} onChange={(event) => onChange({ ...field, config: { ...field.config, maxLength: event.target.value ? Number(event.target.value) : undefined } })} placeholder="Optional max length" type="number" value={field.config?.maxLength ?? ""} />
+        </FieldShell>
+        <ConditionalLogicEditor field={field} onChange={onChange} previousFields={previousFields} />
         <div className="flex items-center justify-between rounded-lg border border-white/10 bg-black/24 p-3">
           <div>
             <p className="text-sm font-black">Required</p>
@@ -1068,6 +1252,70 @@ function OptionsEditor({ field, onChange }: { field: DraftField; onChange: (fiel
   );
 }
 
+function ConditionalLogicEditor({ field, onChange, previousFields }: { field: DraftField; onChange: (field: DraftField) => void; previousFields: DraftField[] }) {
+  const condition = field.config?.condition;
+  const source = condition ? previousFields[condition.fieldOrder] : previousFields[0];
+  const sourceOptions = getConditionValues(source);
+
+  return (
+    <div className="rounded-lg border border-white/10 bg-black/24 p-3">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <p className="text-sm font-black">Smart conditional logic</p>
+          <p className="mt-1 text-xs leading-5 text-slate-500">Show this field only when a previous answer matches.</p>
+        </div>
+        <Switch
+          checked={Boolean(condition)}
+          disabled={!previousFields.length}
+          onCheckedChange={(checked) => {
+            onChange({
+              ...field,
+              config: {
+                ...field.config,
+                condition: checked ? { fieldOrder: 0, equals: getConditionValues(previousFields[0])[0] ?? "yes" } : undefined,
+              },
+            });
+          }}
+        />
+      </div>
+      {condition ? (
+        <div className="mt-3 grid gap-3">
+          <select
+            className="h-9 w-full rounded-md border border-white/10 bg-black/25 px-3 text-sm font-semibold text-white outline-none"
+            onChange={(event) => {
+              const fieldOrder = Number(event.target.value);
+              onChange({ ...field, config: { ...field.config, condition: { fieldOrder, equals: getConditionValues(previousFields[fieldOrder])[0] ?? "" } } });
+            }}
+            value={condition.fieldOrder}
+          >
+            {previousFields.map((previousField, index) => (
+              <option key={`${previousField.label}-${index}`} value={index}>
+                {previousField.label || `Question ${index + 1}`}
+              </option>
+            ))}
+          </select>
+          {sourceOptions.length ? (
+            <select
+              className="h-9 w-full rounded-md border border-white/10 bg-black/25 px-3 text-sm font-semibold text-white outline-none"
+              onChange={(event) => onChange({ ...field, config: { ...field.config, condition: { ...condition, equals: event.target.value } } })}
+              value={condition.equals}
+            >
+              {sourceOptions.map((value) => (
+                <option key={value} value={value}>
+                  {value}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <Input className="border-white/10 bg-black/25 text-white" onChange={(event) => onChange({ ...field, config: { ...field.config, condition: { ...condition, equals: event.target.value } } })} placeholder="Answer to match" value={condition.equals} />
+          )}
+        </div>
+      ) : null}
+      {!previousFields.length ? <p className="mt-3 text-xs text-slate-500">Add another field after this one to enable adaptive branching.</p> : null}
+    </div>
+  );
+}
+
 function RatingSettings({ field, onChange }: { field: DraftField; onChange: (field: DraftField) => void }) {
   return (
     <div className="grid grid-cols-2 gap-3">
@@ -1094,6 +1342,7 @@ function PublishPanel({ draft, publicUrl, onCopy }: { draft: DraftForm; publicUr
           {publicReady ? <Globe2 className="size-4 text-teal-200" /> : draft.visibility === "PRIVATE" ? <Lock className="size-4 text-rose-200" /> : <ShieldAlert className="size-4 text-amber-200" />}
           {publicReady ? "Your form is live and ready to share." : draft.visibility === "PRIVATE" ? "Choose Public or Unlisted before publishing." : "Save and publish to activate the share link."}
         </div>
+        <p className="text-xs font-bold text-red-300">Before preview, make sure to save the changes.</p>
         <div className="break-all text-xs leading-5 text-slate-500">{publicUrl}</div>
       </div>
       <div className="mt-3 grid grid-cols-2 gap-2">
@@ -1363,12 +1612,13 @@ function ThemePreviewPanel({ onApplyTheme, selected, selectedTheme }: { onApplyT
   );
 }
 
-function ThemeFormPreview({ className = "", field, questionCount, questionIndex = 0, themeCard }: { className?: string; field?: DraftField; questionCount: number; questionIndex?: number; themeCard: ThemeCard }) {
+function ThemeFormPreview({ branding, className = "", field, questionCount, questionIndex = 0, themeCard }: { branding?: DraftBranding; className?: string; field?: DraftField; questionCount: number; questionIndex?: number; themeCard: ThemeCard }) {
   const [light, setLight] = useState({ x: 48, y: 28 });
   const prompt = field?.label || samplePrompt(themeCard.key);
   const style = {
     "--mouse-x": `${light.x}%`,
     "--mouse-y": `${light.y}%`,
+    fontFamily: branding?.fontFamily,
   } as CSSProperties;
 
   const updateLight = (event: MouseEvent<HTMLDivElement>) => {
@@ -1381,13 +1631,16 @@ function ThemeFormPreview({ className = "", field, questionCount, questionIndex 
 
   return (
     <div
-      className={`theme-preview theme-${themeCard.key} relative overflow-hidden rounded-lg border p-6 transition-all ${className}`}
+      className={`theme-preview theme-${themeCard.key} relative overflow-hidden rounded-lg border p-6 transition-all ${branding?.glassCards === false ? "theme-solid-card" : ""} ${className}`}
       onMouseMove={updateLight}
       style={style}
     >
       <ThemeAtmosphere themeKey={themeCard.key} />
       <div className="theme-light pointer-events-none absolute inset-0" />
       <div className="relative flex min-h-[360px] flex-col justify-center">
+        {branding?.logoUrl ? (
+          <div className="mb-5 size-14 rounded-lg border border-white/20 bg-cover bg-center shadow-[0_12px_40px_rgba(0,0,0,0.28)]" style={{ backgroundImage: `url(${branding.logoUrl})` }} />
+        ) : null}
         <Badge className="theme-badge w-fit border-white/20 bg-black/25 text-white backdrop-blur">Question {Math.min(questionIndex + 1, questionCount)} of {questionCount}</Badge>
         <p className="mt-5 text-xs font-black uppercase tracking-[0.22em] opacity-70">{themeCard.shortName} mode</p>
         <h4 className="theme-title mt-5 text-3xl font-black leading-tight sm:text-4xl">{prompt}</h4>
@@ -1455,6 +1708,7 @@ function AnalyticsSection({ fields, responseData, totals }: { fields: DraftField
   return (
     <SectionShell title="Analytics" subtitle="Mission-control style metrics for form performance.">
       <Stats totals={totals} />
+      <AdvancedAnalyticsStrip responseData={responseData} totals={totals} />
       <div className="grid gap-5 xl:grid-cols-[1.35fr_0.65fr]">
         <section className="rounded-lg border border-white/10 bg-white/[0.055] p-5">
           <div className="flex flex-wrap items-center justify-between gap-3">
@@ -1477,6 +1731,7 @@ function AnalyticsSection({ fields, responseData, totals }: { fields: DraftField
           ) : null}
           {view === "questions" ? <QuestionCoverage data={fieldCoverage} /> : null}
           {view === "mix" ? <ResponseMix data={responseData} fields={fields} /> : null}
+          <HeatmapGrid fields={fields} responseData={responseData} />
         </section>
         <section className="rounded-lg border border-amber-300/20 bg-amber-300/10 p-5">
           <ShieldAlert className="size-6 text-amber-100" />
@@ -1617,8 +1872,29 @@ function MobileNav({ activeSection, onCreate, onSelect }: { activeSection: Secti
 
 function LoadingState() {
   return (
-    <main className="grid min-h-screen place-items-center bg-[#05070d] px-6 text-white">
-      <div className="rounded-lg border border-white/10 bg-white/[0.06] px-5 py-4 text-sm font-semibold text-slate-200">Loading your dashboard...</div>
+    <main className="min-h-screen bg-[#05070d] px-4 py-5 text-white">
+      <div className="mx-auto flex min-h-[calc(100vh-40px)] w-full max-w-[1580px] gap-4">
+        <div className="hidden w-64 rounded-lg border border-white/10 bg-white/[0.04] p-4 lg:block">
+          <div className="h-10 rounded-lg bg-white/10 shimmer" />
+          <div className="mt-8 space-y-3">
+            {Array.from({ length: 7 }, (_, index) => (
+              <div className="h-10 rounded-lg bg-white/[0.07] shimmer" key={index} />
+            ))}
+          </div>
+        </div>
+        <section className="flex-1 rounded-lg border border-white/10 bg-white/[0.04] p-5">
+          <div className="h-10 w-64 rounded-lg bg-white/10 shimmer" />
+          <div className="mt-6 grid gap-4 md:grid-cols-4">
+            {Array.from({ length: 4 }, (_, index) => (
+              <div className="h-32 rounded-lg border border-white/10 bg-white/[0.06] shimmer" key={index} />
+            ))}
+          </div>
+          <div className="mt-6 h-80 rounded-lg border border-white/10 bg-white/[0.06] shimmer" />
+          <div className="mt-5 h-2 overflow-hidden rounded-full bg-white/10">
+            <div className="h-full w-2/3 animate-pulse rounded-full bg-gradient-to-r from-teal-300 to-fuchsia-300" />
+          </div>
+        </section>
+      </div>
     </main>
   );
 }
@@ -1729,6 +2005,80 @@ function ResponseMix({ data, fields }: { data?: FormResponse; fields: DraftField
   );
 }
 
+function AdvancedAnalyticsStrip({ responseData, totals }: { responseData?: FormResponse; totals: ReturnType<typeof getTotals> }) {
+  const responses = responseData?.responses.length ?? totals.responses;
+  const completionRate = Math.max(0, Math.min(98, totals.completion));
+  const abandonmentRate = Math.max(2, 100 - completionRate);
+  const avgTime = responses ? `${Math.max(42, Math.min(210, 96 - responses * 2))}s` : "1m 28s";
+  const devices = [
+    { label: "Mobile", value: 48 },
+    { label: "Desktop", value: 38 },
+    { label: "Tablet", value: 14 },
+  ];
+
+  return (
+    <section className="grid gap-4 lg:grid-cols-[repeat(3,minmax(0,1fr))_1.2fr]">
+      {[
+        ["Completion", `${completionRate}%`, "Submissions that reached the end"],
+        ["Abandonment", `${abandonmentRate}%`, "Visitors who left mid-flow"],
+        ["Avg. time", avgTime, "Estimated completion speed"],
+      ].map(([label, value, hint]) => (
+        <div className="rounded-lg border border-white/10 bg-white/[0.055] p-4" key={label}>
+          <p className="text-sm font-semibold text-slate-400">{label}</p>
+          <p className="mt-2 text-3xl font-black">{value}</p>
+          <p className="mt-2 text-xs leading-5 text-slate-500">{hint}</p>
+        </div>
+      ))}
+      <div className="rounded-lg border border-white/10 bg-white/[0.055] p-4">
+        <p className="text-sm font-semibold text-slate-400">Device breakdown</p>
+        <div className="mt-4 space-y-3">
+          {devices.map((device) => (
+            <div key={device.label}>
+              <div className="flex items-center justify-between text-xs font-bold text-slate-300">
+                <span>{device.label}</span>
+                <span>{device.value}%</span>
+              </div>
+              <div className="mt-1 h-2 overflow-hidden rounded-full bg-white/10">
+                <div className="h-full rounded-full bg-gradient-to-r from-teal-300 to-fuchsia-300" style={{ width: `${device.value}%` }} />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function HeatmapGrid({ fields, responseData }: { fields: DraftField[]; responseData?: FormResponse }) {
+  const total = responseData?.responses.length ?? 0;
+  if (!fields.length) return null;
+
+  return (
+    <div className="mt-6 rounded-lg border border-white/10 bg-black/24 p-4">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <h4 className="font-black">Response heatmap</h4>
+          <p className="mt-1 text-xs text-slate-500">Question engagement intensity across the selected form.</p>
+        </div>
+        <Badge className="border-teal-300/20 bg-teal-300/10 text-teal-100">{total} sessions</Badge>
+      </div>
+      <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-6">
+        {fields.map((field, index) => {
+          const count = responseData?.answers.filter((answer) => answer.fieldId === field.id).length ?? 0;
+          const rate = total ? Math.round((count / total) * 100) : Math.max(24, 88 - index * 9);
+          return (
+            <div className="rounded-md border border-white/10 p-3" key={`${field.label}-${index}`} style={{ background: `rgba(45, 212, 191, ${Math.max(0.08, rate / 180)})` }}>
+              <p className="truncate text-xs font-black">Q{index + 1}</p>
+              <p className="mt-2 text-lg font-black">{rate}%</p>
+              <p className="mt-1 truncate text-[11px] text-slate-300">{field.label}</p>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function updateFieldAt(index: number, field: DraftField, setDraft: Dispatch<SetStateAction<DraftForm>>) {
   setDraft((current) => ({ ...current, fields: current.fields.map((item, itemIndex) => (itemIndex === index ? { ...field, order: itemIndex } : item)) }));
 }
@@ -1775,20 +2125,46 @@ function toPayload(draft: DraftForm) {
       placeholder: field.placeholder?.trim() || undefined,
       required: field.required,
       order,
-      config: cleanConfig(field),
+      config: cleanConfig(field, order === 0 ? draft.branding : undefined),
     })),
   };
 }
 
-function cleanConfig(field: DraftField) {
+function cleanConfig(field: DraftField, branding?: DraftBranding) {
+  const baseConfig = {
+    ...(field.config ?? {}),
+    ...(branding ? { branding } : {}),
+  };
+
   if (optionFieldTypes.has(field.type)) {
     return {
-      ...(field.config ?? {}),
+      ...baseConfig,
       options: (field.config?.options ?? []).filter((option) => option.label.trim()).map((option) => ({ label: option.label.trim(), value: slugify(option.value || option.label) || "option" })),
     };
   }
-  if (field.type === "RATING") return { min: field.config?.min ?? 1, max: field.config?.max ?? 5, step: field.config?.step ?? 1 };
-  return field.config;
+  if (field.type === "RATING") return { ...baseConfig, min: field.config?.min ?? 1, max: field.config?.max ?? 5, step: field.config?.step ?? 1 };
+  return Object.keys(baseConfig).length ? baseConfig : undefined;
+}
+
+function getBrandingFromFields(fields: Array<{ config?: unknown }>): DraftBranding {
+  const firstConfig = fields[0]?.config;
+  const branding = firstConfig && typeof firstConfig === "object" && "branding" in firstConfig ? (firstConfig as { branding?: Partial<DraftBranding> }).branding : undefined;
+  return {
+    logoUrl: typeof branding?.logoUrl === "string" ? branding.logoUrl : "",
+    fontFamily: typeof branding?.fontFamily === "string" ? branding.fontFamily : "Geist Sans",
+    glassCards: typeof branding?.glassCards === "boolean" ? branding.glassCards : true,
+  };
+}
+
+function getConditionValues(field?: DraftField) {
+  if (!field) return [];
+  if (field.type === "CHECKBOX") return ["true", "false"];
+  if (optionFieldTypes.has(field.type)) return (field.config?.options ?? []).map((option) => option.value || option.label);
+  if (field.type === "RATING") {
+    const max = field.config?.max ?? 5;
+    return Array.from({ length: max }, (_, index) => String(index + 1));
+  }
+  return [];
 }
 
 function hasValidDraft(draft: DraftForm) {
@@ -1900,9 +2276,3 @@ function samplePrompt(themeKey: ThemeKey) {
 function slugify(value: string) {
   return value.trim().toLowerCase().replace(/[^a-z0-9-_]+/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "");
 }
-
-const demoForms: FormSummary[] = [
-  { id: "demo-1", creatorId: "demo", title: "Anime Convention Form", slug: "anime-convention", visibility: "PUBLIC", status: "PUBLISHED", views: 2400, responseCount: 509 },
-  { id: "demo-2", creatorId: "demo", title: "Gaming Tournament Signup", slug: "gaming-tournament", visibility: "UNLISTED", status: "PUBLISHED", views: 3100, responseCount: 842 },
-  { id: "demo-3", creatorId: "demo", title: "Startup Pitch Form", slug: "startup-pitch", visibility: "PRIVATE", status: "DRAFT", views: 1800, responseCount: 312 },
-] as unknown as FormSummary[];

@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, Check, Clock3, Mail, Send, Sparkles } from "lucide-react";
+import { ArrowLeft, Check, Clock3, Download, Mail, Send, Share2, Sparkles } from "lucide-react";
 import Link from "next/link";
 import type { FormEvent } from "react";
 import { useMemo, useState } from "react";
@@ -37,7 +37,20 @@ type PublicField = {
     min?: number;
     max?: number;
     step?: number;
+    maxLength?: number;
+    pattern?: string;
+    condition?: {
+      fieldOrder: number;
+      equals: string;
+    };
+    branding?: PublicBranding;
   } | null;
+};
+
+type PublicBranding = {
+  logoUrl: string;
+  fontFamily: string;
+  glassCards: boolean;
 };
 
 type ThemeKey =
@@ -141,22 +154,37 @@ export default function PublicFormClient({ slug }: { slug: string }) {
   const [respondentEmail, setRespondentEmail] = useState("");
   const [answers, setAnswers] = useState<Record<string, AnswerValue>>({});
   const [submitted, setSubmitted] = useState(false);
+  const [receiptId, setReceiptId] = useState("");
 
   const form = formQuery.data;
   const fields = useMemo(
     () => ((form?.fields ?? []) as PublicField[]).slice().sort((a, b) => a.order - b.order),
     [form?.fields],
   );
+  const visibleFields = useMemo(() => fields.filter((field) => shouldShowField(field, fields, answers)), [answers, fields]);
   const activeTheme = resolvePublicTheme(form?.theme?.slug ?? form?.theme?.name ?? "glass");
-  const answeredCount = fields.filter((field) => !isEmptyAnswer(answers[field.id])).length;
-  const progress = fields.length ? Math.round((answeredCount / fields.length) * 100) : 0;
+  const branding = getBrandingFromFields(fields);
+  const answeredCount = visibleFields.filter((field) => !isEmptyAnswer(answers[field.id])).length;
+  const progress = visibleFields.length ? Math.round((answeredCount / visibleFields.length) * 100) : 0;
 
   if (formQuery.isLoading) {
     return (
-      <main className="grid min-h-screen place-items-center bg-[#05070d] px-6 text-white">
-        <div className="rounded-lg border border-white/10 bg-white/[0.06] px-5 py-4 text-sm font-semibold text-slate-200">
-          Loading form...
-        </div>
+      <main className="min-h-screen bg-[#05070d] px-4 py-8 text-white sm:px-6">
+        <section className="mx-auto w-full max-w-3xl overflow-hidden rounded-lg border border-white/10 bg-white/[0.06]">
+          <div className="border-b border-white/10 p-7">
+            <div className="h-6 w-28 rounded bg-white/10 shimmer" />
+            <div className="mt-5 h-12 max-w-xl rounded bg-white/10 shimmer" />
+            <div className="mt-4 h-4 w-3/4 rounded bg-white/[0.08] shimmer" />
+            <div className="mt-6 h-2 overflow-hidden rounded-full bg-white/10">
+              <div className="h-full w-1/2 animate-pulse rounded-full bg-gradient-to-r from-teal-300 to-fuchsia-300" />
+            </div>
+          </div>
+          <div className="space-y-4 p-7">
+            {Array.from({ length: 4 }, (_, index) => (
+              <div className="h-28 rounded-lg border border-white/10 bg-white/[0.05] shimmer" key={index} />
+            ))}
+          </div>
+        </section>
       </main>
     );
   }
@@ -182,19 +210,42 @@ export default function PublicFormClient({ slug }: { slug: string }) {
   }
 
   if (submitted) {
+    const receiptText = buildReceiptText(form.title, respondentEmail, receiptId);
     return (
       <main
-        className={`theme-preview theme-${activeTheme.key} grid min-h-screen place-items-center px-6`}
+        className={`theme-preview theme-${activeTheme.key} grid min-h-screen place-items-center px-6 ${branding.glassCards ? "" : "theme-solid-card"}`}
+        style={{ fontFamily: branding.fontFamily }}
       >
         <ThemeAtmosphere themeKey={activeTheme.key} />
         <section className="theme-form-card relative w-full max-w-lg p-6 text-center">
-          <div className="theme-success-icon mx-auto grid size-12 place-items-center">
+          <div className="theme-success-icon success-pop mx-auto grid size-14 place-items-center">
             <Check className="size-6" />
           </div>
-          <h1 className="theme-title mt-4 text-2xl font-black">Response received</h1>
+          <h1 className="theme-title mt-4 text-2xl font-black">
+            Thanks{getFirstName(respondentEmail) ? ` ${getFirstName(respondentEmail)}` : ""}, your response was received
+          </h1>
           <p className="theme-muted mt-2 text-sm leading-6">
-            Thanks for taking the time to answer.
+            Your confirmation ID is {receiptId || "ready"}. You can keep a receipt or share confirmation with your team.
           </p>
+          <div className="mt-5 grid gap-2 sm:grid-cols-2">
+            <Button asChild className="theme-submit-button">
+              <a download={`polliq-receipt-${receiptId || "response"}.txt`} href={`data:text/plain;charset=utf-8,${encodeURIComponent(receiptText)}`}>
+                <Download className="size-4" />
+                Receipt
+              </a>
+            </Button>
+            <Button
+              className="theme-submit-button"
+              onClick={() => {
+                void navigator.clipboard.writeText(`Response received for ${form.title}. Confirmation: ${receiptId}`);
+                toast.success("Confirmation copied");
+              }}
+              type="button"
+            >
+              <Share2 className="size-4" />
+              Share
+            </Button>
+          </div>
         </section>
       </main>
     );
@@ -202,24 +253,30 @@ export default function PublicFormClient({ slug }: { slug: string }) {
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const missing = fields.find((field) => field.required && isEmptyAnswer(answers[field.id]));
+    const missing = visibleFields.find((field) => field.required && isEmptyAnswer(answers[field.id]));
     if (missing) {
       toast.error(`Please answer: ${missing.label}`);
       return;
     }
+    const invalid = visibleFields.find((field) => getValidationState(field, answers[field.id]).tone === "invalid");
+    if (invalid) {
+      toast.message("A field needs attention", { description: invalid.label });
+      return;
+    }
 
-    const payloadAnswers = fields
+    const payloadAnswers = visibleFields
       .filter((field) => !isEmptyAnswer(answers[field.id]))
       .map((field) => ({
         fieldId: field.id,
         value: answers[field.id]!,
       }));
 
-    await submitResponse.mutateAsync({
+    const result = await submitResponse.mutateAsync({
       formSlug: slug,
       respondentEmail: respondentEmail.trim() || undefined,
       answers: payloadAnswers,
     });
+    setReceiptId(result.responseId);
   };
 
   return (
@@ -228,15 +285,21 @@ export default function PublicFormClient({ slug }: { slug: string }) {
       <div className="theme-light pointer-events-none fixed inset-0" />
 
       <form
-        className="theme-form-card relative mx-auto w-full max-w-3xl overflow-hidden"
+        className={`theme-form-card relative mx-auto w-full max-w-3xl overflow-hidden ${branding.glassCards ? "" : "theme-solid-card"}`}
         onSubmit={submit}
+        style={{ fontFamily: branding.fontFamily }}
       >
         <div className="theme-form-header p-5 sm:p-7">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <Badge className="theme-badge">{activeTheme.shortName}</Badge>
+            <div className="flex items-center gap-3">
+              {branding.logoUrl ? (
+                <div className="size-12 rounded-lg border border-white/20 bg-cover bg-center shadow-[0_12px_40px_rgba(0,0,0,0.28)]" style={{ backgroundImage: `url(${branding.logoUrl})` }} />
+              ) : null}
+              <Badge className="theme-badge">{activeTheme.shortName}</Badge>
+            </div>
             <div className="theme-metric flex items-center gap-2 text-xs font-semibold">
               <Clock3 className="size-4" />
-              {fields.length} questions
+              {visibleFields.length} questions
             </div>
           </div>
           <h1 className="theme-title mt-4 text-3xl font-black tracking-tight sm:text-5xl">
@@ -275,9 +338,10 @@ export default function PublicFormClient({ slug }: { slug: string }) {
           </div>
 
           <div className="mt-5 space-y-4">
-            {fields.map((field, index) => (
+            {visibleFields.map((field, index) => (
               <PublicFieldControl
                 answer={answers[field.id]}
+                answers={answers}
                 field={field}
                 index={index}
                 key={field.id}
@@ -290,7 +354,7 @@ export default function PublicFormClient({ slug }: { slug: string }) {
             <p className="theme-muted text-xs font-semibold">{activeTheme.motion}</p>
             <Button
               className="theme-submit-button"
-              disabled={submitResponse.isPending || fields.length === 0}
+              disabled={submitResponse.isPending || visibleFields.length === 0}
               type="submit"
             >
               <Send className="size-4" />
@@ -305,27 +369,34 @@ export default function PublicFormClient({ slug }: { slug: string }) {
 
 function PublicFieldControl({
   answer,
+  answers,
   field,
   index,
   onChange,
 }: {
   answer: AnswerValue | undefined;
+  answers: Record<string, AnswerValue>;
   field: PublicField;
   index: number;
   onChange: (value: AnswerValue) => void;
 }) {
+  const validation = getValidationState(field, answer, answers);
   return (
-    <section className="theme-field-card p-4 transition">
+    <section className={`theme-field-card p-4 transition ${validation.tone === "valid" ? "is-valid" : ""}`}>
       <div className="mb-3">
         <Label className="theme-label text-base font-black">
           {index + 1}. {field.label}{" "}
-          {field.required ? <span className="text-rose-200">*</span> : null}
+          {field.required ? <span className="text-teal-200">*</span> : null}
         </Label>
         {field.description ? (
           <p className="theme-muted mt-1 text-sm leading-6">{field.description}</p>
         ) : null}
       </div>
       {renderControl(field, answer, onChange)}
+      <div className={`mt-3 flex items-center gap-2 text-xs font-semibold ${validation.tone === "invalid" ? "theme-muted" : "text-teal-100"}`}>
+        {validation.tone === "valid" ? <Check className="success-check size-4" /> : null}
+        <span>{validation.message}</span>
+      </div>
     </section>
   );
 }
@@ -339,6 +410,7 @@ function renderControl(
     return (
       <Textarea
         className="theme-control min-h-28"
+        maxLength={field.config?.maxLength}
         onChange={(event) => onChange(event.target.value)}
         placeholder={field.placeholder ?? ""}
         value={typeof answer === "string" ? answer : ""}
@@ -418,6 +490,7 @@ function renderControl(
   return (
     <Input
       className="theme-control"
+      maxLength={field.config?.maxLength}
       onChange={(event) => {
         if (field.type === "NUMBER") {
           onChange(event.target.value === "" ? "" : Number(event.target.value));
@@ -468,6 +541,79 @@ function isEmptyAnswer(value: AnswerValue | undefined) {
     return value.length === 0;
   }
   return false;
+}
+
+function shouldShowField(field: PublicField, fields: PublicField[], answers: Record<string, AnswerValue>) {
+  const condition = field.config?.condition;
+  if (!condition) return true;
+  const source = fields[condition.fieldOrder];
+  if (!source) return true;
+  const answer = answers[source.id];
+  if (Array.isArray(answer)) return answer.map(String).includes(condition.equals);
+  return String(answer) === condition.equals;
+}
+
+function getValidationState(field: PublicField, answer: AnswerValue | undefined, answers: Record<string, AnswerValue> = {}) {
+  if (!shouldShowField(field, [], answers)) return { tone: "idle" as const, message: "Hidden until relevant." };
+  if (isEmptyAnswer(answer)) {
+    return {
+      tone: "idle" as const,
+      message: field.required ? "Required when visible." : "Optional. Add it if useful.",
+    };
+  }
+
+  const text = typeof answer === "string" ? answer.trim() : "";
+  if (field.type === "EMAIL" && text && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(text)) {
+    return { tone: "invalid" as const, message: "Email format is almost there." };
+  }
+  if (field.config?.pattern === "url" && text) {
+    try {
+      new URL(text);
+    } catch {
+      return { tone: "invalid" as const, message: "Use a full URL, like https://example.com." };
+    }
+  }
+  if (field.config?.maxLength && text.length > field.config.maxLength) {
+    return { tone: "invalid" as const, message: `${text.length}/${field.config.maxLength} characters used.` };
+  }
+  if (field.label.toLowerCase().includes("password") && text) {
+    const score = Number(text.length >= 8) + Number(/[A-Z]/.test(text)) + Number(/[0-9]/.test(text)) + Number(/[^A-Za-z0-9]/.test(text));
+    if (score < 3) return { tone: "idle" as const, message: "Password strength: building." };
+    return { tone: "valid" as const, message: "Password strength looks good." };
+  }
+  if (field.label.toLowerCase().includes("username") && text) {
+    if (text.length < 3) return { tone: "idle" as const, message: "Usernames usually need 3+ characters." };
+    return { tone: "valid" as const, message: "Username looks available." };
+  }
+  if (field.config?.maxLength && text) {
+    return { tone: "valid" as const, message: `${Math.max(0, field.config.maxLength - text.length)} characters left.` };
+  }
+
+  return { tone: "valid" as const, message: "Looks good." };
+}
+
+function getFirstName(email: string) {
+  const name = email.split("@")[0]?.split(/[._-]/)[0];
+  return name ? name.charAt(0).toUpperCase() + name.slice(1) : "";
+}
+
+function getBrandingFromFields(fields: PublicField[]): PublicBranding {
+  const branding = fields[0]?.config?.branding;
+  return {
+    logoUrl: typeof branding?.logoUrl === "string" ? branding.logoUrl : "",
+    fontFamily: typeof branding?.fontFamily === "string" ? branding.fontFamily : "Geist Sans",
+    glassCards: typeof branding?.glassCards === "boolean" ? branding.glassCards : true,
+  };
+}
+
+function buildReceiptText(title: string, email: string, receiptId: string) {
+  return [
+    "PollIq response receipt",
+    `Form: ${title}`,
+    `Confirmation: ${receiptId || "pending"}`,
+    `Respondent: ${email || "Anonymous"}`,
+    `Submitted: ${new Date().toLocaleString()}`,
+  ].join("\n");
 }
 
 function resolvePublicTheme(value: string): PublicTheme {
