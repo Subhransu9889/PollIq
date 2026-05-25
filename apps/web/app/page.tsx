@@ -198,14 +198,14 @@ function Header() {
           <LogoOrb />
           <span className="text-lg font-black tracking-tight">
             Poll
-            <span className="bg-gradient-to-r from-[#22D3EE] via-[#8B5CF6] to-[#EC4899] bg-clip-text text-transparent">
+            <span className="bg-linear-to-r from-[#22D3EE] via-[#8B5CF6] to-[#EC4899] bg-clip-text text-transparent">
               IQ
             </span>
           </span>
         </a>
 
         <a
-          className="group inline-flex h-10 items-center gap-2 rounded-lg border border-white/10 bg-white/[0.045] px-4 text-sm font-bold text-white backdrop-blur-xl transition hover:-translate-y-0.5 hover:border-[#22D3EE]/40 hover:bg-white/[0.075] hover:shadow-[0_0_28px_rgba(34,211,238,0.16)]"
+          className="group inline-flex h-10 items-center gap-2 rounded-lg border border-white/10 bg-white/4.5 px-4 text-sm font-bold text-white backdrop-blur-xl transition hover:-translate-y-0.5 hover:border-[#22D3EE]/40 hover:bg-white/7.5 hover:shadow-[0_0_28px_rgba(34,211,238,0.16)]"
           href="/sign-up"
         >
           Let&apos;s Start
@@ -237,7 +237,7 @@ function Hero() {
     <section className="relative z-10 flex min-h-screen items-center px-5 py-8 sm:px-8 lg:px-12">
       <div className="mx-auto grid w-full max-w-7xl items-center gap-12 lg:grid-cols-[1fr_0.86fr]">
         <div className="max-w-4xl pt-16 lg:pt-0">
-          <div className="mb-7 inline-flex items-center gap-2 rounded-lg border border-white/12 bg-white/[0.06] px-3 py-2 text-sm text-cyan-100 shadow-[0_0_40px_rgba(34,211,238,0.16)] backdrop-blur-xl">
+          <div className="mb-7 inline-flex items-center gap-2 rounded-lg border border-white/12 bg-white/6 px-3 py-2 text-sm text-cyan-100 shadow-[0_0_40px_rgba(34,211,238,0.16)] backdrop-blur-xl">
             <Sparkles className="size-4 text-[#22D3EE]" />
             AI-native forms for creators, startups, and communities
           </div>
@@ -258,7 +258,7 @@ function Hero() {
             </a>
             <a
               href="#themes"
-              className="inline-flex h-12 items-center justify-center gap-2 rounded-lg border border-white/14 bg-white/[0.06] px-5 font-semibold text-white backdrop-blur-xl transition duration-300 hover:border-[#22D3EE]/60 hover:bg-white/[0.10] hover:shadow-[0_0_34px_rgba(34,211,238,0.25)]"
+              className="inline-flex h-12 items-center justify-center gap-2 rounded-lg border border-white/14 bg-white/6 px-5 font-semibold text-white backdrop-blur-xl transition duration-300 hover:border-[#22D3EE]/60 hover:bg-white/10 hover:shadow-[0_0_34px_rgba(34,211,238,0.25)]"
             >
               <Palette className="size-4 text-[#EC4899]" />
               Explore Themes
@@ -268,7 +268,7 @@ function Hero() {
             {["AI logic", "No-code motion", "Live analytics"].map((item) => (
               <div
                 key={item}
-                className="rounded-lg border border-white/10 bg-white/[0.04] px-4 py-3 backdrop-blur"
+                className="rounded-lg border border-white/10 bg-white/4 px-4 py-3 backdrop-blur"
               >
                 <Check className="mb-2 size-4 text-[#22D3EE]" />
                 {item}
@@ -277,13 +277,13 @@ function Hero() {
           </div>
         </div>
 
-        <div className="relative mx-auto w-full max-w-[520px]">
+        <div className="relative mx-auto w-full max-w-130">
           <FloatingIcon className="-left-5 top-16" icon={Command} />
           <FloatingIcon className="right-3 top-2" icon={Bot} delay="1.2s" />
           <FloatingIcon className="-right-4 bottom-24" icon={MousePointer2} delay="2s" />
           <FloatingIcon className="bottom-4 left-10" icon={Wand2} delay="0.5s" />
           <div className="PollIq-float relative rounded-lg border border-white/14 bg-white/[0.07] p-3 shadow-[0_0_90px_rgba(139,92,246,0.34)] backdrop-blur-2xl">
-            <div className="absolute -inset-px rounded-lg bg-gradient-to-br from-[#8B5CF6]/60 via-transparent to-[#22D3EE]/60 opacity-60 blur-sm" />
+            <div className="absolute -inset-px rounded-lg bg-linear-to-br from-[#8B5CF6]/60 via-transparent to-[#22D3EE]/60 opacity-60 blur-sm" />
             <div className="relative overflow-hidden rounded-lg border border-white/10 bg-[#050816]/90">
               <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
                 <div className="flex items-center gap-2">
@@ -298,9 +298,9 @@ function Hero() {
                   Step 02 / 06
                 </div>
                 <div className="mb-8 mt-8 h-1.5 overflow-hidden rounded-full bg-white/10">
-                  <div className="PollIq-progress h-full rounded-full bg-gradient-to-r from-[#8B5CF6] via-[#EC4899] to-[#22D3EE]" />
+                  <div className="PollIq-progress h-full rounded-full bg-linear-to-r from-[#8B5CF6] via-[#EC4899] to-[#22D3EE]" />
                 </div>
-                <div className="PollIq-question min-h-[270px]">
+                <div className="PollIq-question min-h-67.5">
                   <p className="mb-4 text-sm font-semibold text-[#22D3EE]">Question</p>
                   <h2 className="text-3xl font-black leading-tight">
                     What should your onboarding feel like?
@@ -313,7 +313,7 @@ function Hero() {
                     ].map((answer, index) => (
                       <div
                         key={answer}
-                        className="group rounded-lg border border-white/10 bg-white/[0.05] p-4 transition duration-300 hover:border-[#22D3EE]/60 hover:bg-[#22D3EE]/10"
+                        className="group rounded-lg border border-white/10 bg-white/5 p-4 transition duration-300 hover:border-[#22D3EE]/60 hover:bg-[#22D3EE]/10"
                       >
                         <div className="flex items-center justify-between gap-4">
                           <span className="text-sm text-slate-200">{answer}</span>
@@ -336,7 +336,7 @@ function Hero() {
 
 function TrustedBy() {
   return (
-    <section className="relative z-10 border-y border-white/10 bg-white/[0.025] px-5 py-10 backdrop-blur-xl">
+    <section className="relative z-10 border-y border-white/10 bg-white/2.5 px-5 py-10 backdrop-blur-xl">
       <div className="mx-auto max-w-7xl">
         <p className="mb-6 text-center text-xs font-semibold uppercase text-slate-500">
           Trusted by teams shaping the internet
@@ -345,7 +345,7 @@ function TrustedBy() {
           {logos.map((logo) => (
             <div
               key={logo}
-              className="rounded-lg border border-white/8 bg-white/[0.03] px-4 py-4 text-center text-sm font-bold text-slate-300 grayscale transition hover:border-white/18 hover:text-white"
+              className="rounded-lg border border-white/8 bg-white/3 px-4 py-4 text-center text-sm font-bold text-slate-300 grayscale transition hover:border-white/18 hover:text-white"
             >
               {logo}
             </div>
@@ -377,9 +377,9 @@ function ThemeCard({ theme }: { theme: (typeof themes)[number] }) {
   const Icon = theme.icon;
 
   return (
-    <article className="theme-tilt group relative min-h-[380px] overflow-hidden rounded-lg border border-white/10 bg-white/[0.055] p-5 shadow-[0_24px_80px_rgba(0,0,0,0.45)] backdrop-blur-xl transition duration-500 hover:-translate-y-1 hover:border-[#22D3EE]/50 hover:shadow-[0_0_80px_rgba(139,92,246,0.25)]">
+    <article className="theme-tilt group relative min-h-95 overflow-hidden rounded-lg border border-white/10 bg-white/5.5 p-5 shadow-[0_24px_80px_rgba(0,0,0,0.45)] backdrop-blur-xl transition duration-500 hover:-translate-y-1 hover:border-[#22D3EE]/50 hover:shadow-[0_0_80px_rgba(139,92,246,0.25)]">
       <div
-        className={`absolute inset-x-0 top-0 h-40 bg-gradient-to-r ${theme.palette} opacity-25 blur-2xl transition group-hover:opacity-50`}
+        className={`absolute inset-x-0 top-0 h-40 bg-linear-to-r ${theme.palette} opacity-25 blur-2xl transition group-hover:opacity-50`}
       />
       <div className="relative mb-5 flex items-center justify-between">
         <div className="grid size-11 place-items-center rounded-lg border border-white/14 bg-black/30">
@@ -389,7 +389,7 @@ function ThemeCard({ theme }: { theme: (typeof themes)[number] }) {
           {theme.concept}
         </span>
       </div>
-      <div className="relative h-[245px] overflow-hidden rounded-lg border border-white/12 bg-[#02030a]/70">
+      <div className="relative h-61.25 overflow-hidden rounded-lg border border-white/12 bg-[#02030a]/70">
         <ThemeVisual theme={theme} />
       </div>
       <div className="relative mt-5 flex items-end justify-between gap-4">
@@ -403,7 +403,7 @@ function ThemeCard({ theme }: { theme: (typeof themes)[number] }) {
             <span className="text-cyan-200">98</span>
           </div>
           <div className="h-1.5 rounded-full bg-white/10">
-            <div className={`h-full w-[88%] rounded-full bg-gradient-to-r ${theme.palette}`} />
+            <div className={`h-full w-[88%] rounded-full bg-linear-to-r ${theme.palette}`} />
           </div>
         </div>
       </div>
@@ -444,7 +444,7 @@ function ThemeVisual({ theme }: { theme: (typeof themes)[number] }) {
     return (
       <div className="relative h-full overflow-hidden bg-[radial-gradient(circle_at_50%_42%,rgba(34,211,238,0.18),transparent_28%),radial-gradient(circle_at_20%_20%,rgba(139,92,246,0.22),transparent_25%),#02030a]">
         <div className="theme-stars absolute inset-0" />
-        <div className="absolute left-1/2 top-1/2 size-28 -translate-x-1/2 -translate-y-1/2 rounded-full bg-gradient-to-br from-[#22D3EE] via-[#8B5CF6] to-[#EC4899] shadow-[0_0_60px_rgba(34,211,238,0.42)]" />
+        <div className="absolute left-1/2 top-1/2 size-28 -translate-x-1/2 -translate-y-1/2 rounded-full bg-linear-to-br from-[#22D3EE] via-[#8B5CF6] to-[#EC4899] shadow-[0_0_60px_rgba(34,211,238,0.42)]" />
         <div className="theme-orbit absolute left-1/2 top-1/2 size-44 -translate-x-1/2 -translate-y-1/2 rounded-full border border-cyan-200/30" />
         <div className="theme-orbit-slow absolute left-1/2 top-1/2 size-56 -translate-x-1/2 -translate-y-1/2 rounded-full border border-purple-300/20" />
         <div className="absolute bottom-5 left-5 rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-xs font-bold text-slate-200 backdrop-blur">
@@ -497,8 +497,8 @@ function ThemeVisual({ theme }: { theme: (typeof themes)[number] }) {
   if (theme.variant === "loadout") {
     return (
       <div className="relative h-full bg-[radial-gradient(circle_at_50%_0%,rgba(236,72,153,0.28),transparent_35%),linear-gradient(135deg,#111827,#18051d)] p-5">
-        <div className="absolute inset-x-5 top-5 h-px bg-gradient-to-r from-transparent via-orange-300 to-transparent" />
-        <div className="absolute inset-x-5 bottom-5 h-px bg-gradient-to-r from-transparent via-purple-300 to-transparent" />
+        <div className="absolute inset-x-5 top-5 h-px bg-linear-to-r from-transparent via-orange-300 to-transparent" />
+        <div className="absolute inset-x-5 bottom-5 h-px bg-linear-to-r from-transparent via-purple-300 to-transparent" />
         <div className="rounded-lg border border-white/12 bg-black/25 p-4">
           <p className="text-xs font-black uppercase text-orange-200">Legendary Theme</p>
           <h4 className="mt-3 text-3xl font-black">CYBER SURVEY</h4>
@@ -510,7 +510,7 @@ function ThemeVisual({ theme }: { theme: (typeof themes)[number] }) {
             ["Engagement", "S-TIER"],
             ["Speed", "87"],
           ].map(([label, value]) => (
-            <div key={label} className="flex justify-between rounded-lg bg-white/[0.06] px-3 py-2">
+            <div key={label} className="flex justify-between rounded-lg bg-white/6 px-3 py-2">
               <span className="text-slate-400">{label}</span>
               <span className="font-bold text-white">{value}</span>
             </div>
@@ -522,12 +522,12 @@ function ThemeVisual({ theme }: { theme: (typeof themes)[number] }) {
 
   return (
     <div className="theme-hologram relative h-full overflow-hidden bg-[radial-gradient(circle_at_50%_35%,rgba(34,211,238,0.24),transparent_30%),linear-gradient(180deg,#070816,#02030a)] p-5">
-      <div className="theme-scanline absolute inset-x-0 top-0 h-16 bg-gradient-to-b from-transparent via-cyan-200/20 to-transparent" />
+      <div className="theme-scanline absolute inset-x-0 top-0 h-16 bg-linear-to-b from-transparent via-cyan-200/20 to-transparent" />
       <div className="absolute inset-5 rounded-lg border border-cyan-200/20 shadow-[0_0_44px_rgba(34,211,238,0.18),inset_0_0_30px_rgba(139,92,246,0.12)]" />
       <div className="relative grid h-full place-items-center text-center">
         <div>
           <div className="mx-auto mb-6 grid size-24 place-items-center rounded-full border border-cyan-200/30 bg-cyan-200/10 shadow-[0_0_70px_rgba(34,211,238,0.38)]">
-            <div className="size-12 rounded-full bg-gradient-to-br from-[#8B5CF6] via-[#EC4899] to-[#22D3EE]" />
+            <div className="size-12 rounded-full bg-linear-to-br from-[#8B5CF6] via-[#EC4899] to-[#22D3EE]" />
           </div>
           <p className="text-xs font-bold uppercase text-cyan-200">Enter Mission</p>
           <h4 className="mt-3 text-3xl font-black">CYBERPUNK</h4>
@@ -545,7 +545,7 @@ function BuilderPreview() {
         title="A next-generation creative tool."
         copy="Compose questions, tune motion, and preview the final mobile experience in one focused workspace."
       />
-      <div className="mx-auto mt-12 grid max-w-7xl gap-4 rounded-lg border border-white/10 bg-white/[0.05] p-4 shadow-[0_0_100px_rgba(34,211,238,0.12)] backdrop-blur-2xl lg:grid-cols-[0.82fr_1.2fr_0.82fr]">
+      <div className="mx-auto mt-12 grid max-w-7xl gap-4 rounded-lg border border-white/10 bg-white/5 p-4 shadow-[0_0_100px_rgba(34,211,238,0.12)] backdrop-blur-2xl lg:grid-cols-[0.82fr_1.2fr_0.82fr]">
         <Panel title="Fields" icon={Layers3}>
           <div className="grid gap-3">
             {fields.map((field) => {
@@ -564,16 +564,16 @@ function BuilderPreview() {
             })}
           </div>
         </Panel>
-        <div className="relative min-h-[560px] rounded-lg border border-white/10 bg-[radial-gradient(circle_at_50%_10%,rgba(139,92,246,0.22),transparent_36%),#040713] p-6">
+        <div className="relative min-h-140 rounded-lg border border-white/10 bg-[radial-gradient(circle_at_50%_10%,rgba(139,92,246,0.22),transparent_36%),#040713] p-6">
           <div className="absolute left-5 top-5 rounded-lg border border-[#22D3EE]/30 bg-[#22D3EE]/10 px-3 py-1 text-xs text-cyan-100">
             Live mobile preview
           </div>
-          <div className="mx-auto mt-12 w-full max-w-[300px] rounded-[28px] border border-white/15 bg-black p-3 shadow-[0_0_70px_rgba(139,92,246,0.28)]">
-            <div className="overflow-hidden rounded-[20px] border border-white/10 bg-[#070916]">
-              <div className="h-8 bg-white/[0.04]" />
+          <div className="mx-auto mt-12 w-full max-w-75 rounded-[28px] border border-white/15 bg-black p-3 shadow-[0_0_70px_rgba(139,92,246,0.28)]">
+            <div className="overflow-hidden rounded-4xl border border-white/10 bg-[#070916]">
+              <div className="h-8 bg-white/4" />
               <div className="px-5 py-7">
                 <div className="mb-7 h-1.5 overflow-hidden rounded-full bg-white/10">
-                  <div className="h-full w-3/5 rounded-full bg-gradient-to-r from-[#8B5CF6] to-[#22D3EE]" />
+                  <div className="h-full w-3/5 rounded-full bg-linear-to-r from-[#8B5CF6] to-[#22D3EE]" />
                 </div>
                 <p className="text-xs font-semibold text-[#EC4899]">AI follow-up</p>
                 <h3 className="mt-3 text-2xl font-black leading-tight">
@@ -583,7 +583,7 @@ function BuilderPreview() {
                   {["Cyberpunk neon", "Soft anime", "Mission control"].map((choice) => (
                     <div
                       key={choice}
-                      className="rounded-lg border border-white/10 bg-white/[0.06] p-3 text-sm text-slate-200"
+                      className="rounded-lg border border-white/10 bg-white/6 p-3 text-sm text-slate-200"
                     >
                       {choice}
                     </div>
@@ -607,7 +607,7 @@ function BuilderPreview() {
                 </div>
                 <div className="h-2 rounded-full bg-white/10">
                   <div
-                    className="h-full rounded-full bg-gradient-to-r from-[#8B5CF6] via-[#EC4899] to-[#22D3EE]"
+                    className="h-full rounded-full bg-linear-to-r from-[#8B5CF6] via-[#EC4899] to-[#22D3EE]"
                     style={{ width: `${[88, 74, 61][index]}%` }}
                   />
                 </div>
@@ -637,8 +637,8 @@ function Analytics() {
         title="Mission control for every response."
         copy="Track conversions, heat, completion, and live audience energy as it happens."
       />
-      <div className="analytics-console relative mx-auto mt-12 max-w-7xl overflow-hidden rounded-lg border border-white/10 bg-white/[0.045] p-4 shadow-[0_0_110px_rgba(34,211,238,0.1)] backdrop-blur-2xl">
-        <div className="analytics-scan absolute inset-x-0 top-0 h-24 bg-gradient-to-b from-transparent via-[#22D3EE]/10 to-transparent" />
+      <div className="analytics-console relative mx-auto mt-12 max-w-7xl overflow-hidden rounded-lg border border-white/10 bg-white/4.5 p-4 shadow-[0_0_110px_rgba(34,211,238,0.1)] backdrop-blur-2xl">
+        <div className="analytics-scan absolute inset-x-0 top-0 h-24 bg-linear-to-b from-transparent via-[#22D3EE]/10 to-transparent" />
         <div className="relative mb-4 flex flex-col gap-3 rounded-lg border border-white/10 bg-black/20 p-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-3">
             <div className="grid size-10 place-items-center rounded-lg border border-[#22D3EE]/30 bg-[#22D3EE]/10">
@@ -663,7 +663,7 @@ function Analytics() {
                   <p className="text-xs text-slate-500">{label}</p>
                   <p className="mt-2 text-2xl font-black">{value}</p>
                   <p
-                    className={`mt-1 text-sm ${change.startsWith("-") ? "text-emerald-300" : "text-[#22D3EE]"}`}
+                    className={`mt-1 text-sm ${change?.startsWith("-") ? "text-emerald-300" : "text-[#22D3EE]"}`}
                   >
                     {change}
                   </p>
@@ -683,7 +683,7 @@ function Analytics() {
                   </span>
                 </div>
                 <div className="relative h-72 overflow-hidden rounded-lg border border-white/10 bg-black/20 p-4">
-                  <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.04)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.04)_1px,transparent_1px)] bg-[length:42px_42px]" />
+                  <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.04)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.04)_1px,transparent_1px)] bg-size-[42px_42px]" />
                   <div className="relative flex h-full items-end gap-2">
                     {[32, 46, 42, 70, 58, 84, 66, 91, 78, 96, 86, 100].map((height, index) => (
                       <div
@@ -691,7 +691,7 @@ function Analytics() {
                         className="flex flex-1 items-end rounded-md bg-white/[0.035] p-1"
                       >
                         <div
-                          className="analytics-bar w-full rounded-md bg-gradient-to-t from-[#8B5CF6] via-[#EC4899] to-[#22D3EE] shadow-[0_0_22px_rgba(34,211,238,0.28)]"
+                          className="analytics-bar w-full rounded-md bg-linear-to-t from-[#8B5CF6] via-[#EC4899] to-[#22D3EE] shadow-[0_0_22px_rgba(34,211,238,0.28)]"
                           style={{
                             height: `${height}%`,
                             animationDelay: `${index * 70}ms`,
@@ -700,7 +700,7 @@ function Analytics() {
                       </div>
                     ))}
                   </div>
-                  <div className="analytics-flow absolute left-8 right-8 top-1/2 h-px bg-gradient-to-r from-transparent via-[#22D3EE] to-transparent" />
+                  <div className="analytics-flow absolute left-8 right-8 top-1/2 h-px bg-linear-to-r from-transparent via-[#22D3EE] to-transparent" />
                 </div>
               </div>
 
@@ -716,7 +716,7 @@ function Analytics() {
                       </div>
                       <div className="h-3 rounded-full bg-white/10">
                         <div
-                          className="analytics-fill h-full rounded-full bg-gradient-to-r from-[#8B5CF6] via-[#EC4899] to-[#22D3EE]"
+                          className="analytics-fill h-full rounded-full bg-linear-to-r from-[#8B5CF6] via-[#EC4899] to-[#22D3EE]"
                           style={{ width: `${value}%` }}
                         />
                       </div>
@@ -739,7 +739,7 @@ function Analytics() {
                           boxShadow: `0 0 22px ${color}33`,
                         }}
                       >
-                        <span className="text-xs font-black" style={{ color }}>
+                        <span className="text-xs font-black" style={{ color: `${color}` }}>
                           {value}
                         </span>
                       </div>
@@ -751,7 +751,7 @@ function Analytics() {
                         <div className="h-1.5 rounded-full bg-white/10">
                           <div
                             className="h-full rounded-full"
-                            style={{ width: `${value}%`, backgroundColor: color }}
+                            style={{ width: `${value}%`, backgroundColor: `${color}` }}
                           />
                         </div>
                       </div>
@@ -766,7 +766,7 @@ function Analytics() {
                   <div className="absolute size-[78%] rounded-full border border-[#22D3EE]/20" />
                   <div className="absolute size-[54%] rounded-full border border-[#EC4899]/20" />
                   <div className="analytics-radar absolute size-[88%] rounded-full border-t border-[#22D3EE]" />
-                  <div className="size-16 rounded-full bg-gradient-to-br from-[#8B5CF6] via-[#EC4899] to-[#22D3EE] shadow-[0_0_42px_rgba(34,211,238,0.36)]" />
+                  <div className="size-16 rounded-full bg-linear-to-br from-[#8B5CF6] via-[#EC4899] to-[#22D3EE] shadow-[0_0_42px_rgba(34,211,238,0.36)]" />
                 </div>
                 <div className="mt-4 grid grid-cols-2 gap-2 text-xs text-slate-400">
                   <span>Joy 91%</span>
@@ -782,7 +782,7 @@ function Analytics() {
                   {aiInsights.map(([issue, action]) => (
                     <div
                       key={issue}
-                      className="rounded-lg border border-white/10 bg-white/[0.04] p-3"
+                      className="rounded-lg border border-white/10 bg-white/4 p-3"
                     >
                       <p className="text-sm font-semibold text-slate-200">{issue}</p>
                       <p className="mt-1 text-xs text-[#22D3EE]">{action}</p>
@@ -847,7 +847,7 @@ function Analytics() {
                 {activity.map((item) => (
                   <div
                     key={item}
-                    className="flex items-center gap-3 rounded-lg border border-white/10 bg-white/[0.04] p-3 text-sm text-slate-300"
+                    className="flex items-center gap-3 rounded-lg border border-white/10 bg-white/4 p-3 text-sm text-slate-300"
                   >
                     <span className="analytics-pulse size-2 rounded-full bg-[#22D3EE]" />
                     {item}
@@ -873,10 +873,10 @@ function ExploreForms() {
         {explore.map(([title, copy, gradient]) => (
           <article
             key={title}
-            className="group relative h-[300px] min-w-[260px] overflow-hidden rounded-lg border border-white/10 bg-white/[0.05] p-5 backdrop-blur-xl transition duration-300 hover:-translate-y-1 hover:border-[#EC4899]/50"
+            className="group relative h-75 min-w-65 overflow-hidden rounded-lg border border-white/10 bg-white/5 p-5 backdrop-blur-xl transition duration-300 hover:-translate-y-1 hover:border-[#EC4899]/50"
           >
             <div
-              className={`absolute inset-0 bg-gradient-to-br ${gradient} opacity-25 transition group-hover:opacity-45`}
+              className={`absolute inset-0 bg-linear-to-br ${gradient} opacity-25 transition group-hover:opacity-45`}
             />
             <div className="absolute inset-x-6 bottom-6 top-24 rounded-lg border border-white/10 bg-black/20" />
             <div className="relative flex h-full flex-col justify-between">
@@ -908,7 +908,7 @@ function Pricing() {
             className={`relative rounded-lg border p-6 backdrop-blur-2xl ${
               plan.featured
                 ? "border-[#8B5CF6]/60 bg-[#8B5CF6]/12 shadow-[0_0_90px_rgba(139,92,246,0.34)]"
-                : "border-white/10 bg-white/[0.05]"
+                : "border-white/10 bg-white/5"
             }`}
           >
             {plan.featured ? (
@@ -926,7 +926,7 @@ function Pricing() {
               className={`mt-7 flex h-11 w-full items-center justify-center gap-2 rounded-lg font-bold ${
                 plan.featured
                   ? "bg-white text-black"
-                  : "border border-white/12 bg-white/[0.06] text-white"
+                  : "border border-white/12 bg-white/6 text-white"
               }`}
             >
               Choose {plan.name}
@@ -954,7 +954,7 @@ function FinalCta() {
       <div className="PollIq-particles absolute inset-0 opacity-35" />
 
       <div className="relative mx-auto max-w-7xl overflow-hidden rounded-lg border border-white/10 bg-[#060816]/72 shadow-[0_0_120px_rgba(139,92,246,0.18)] backdrop-blur-2xl">
-        <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-[#22D3EE] to-transparent" />
+        <div className="absolute inset-x-0 top-0 h-px bg-linear-to-r from-transparent via-[#22D3EE] to-transparent" />
 
         <div className="px-5 py-16 text-center sm:px-8 lg:px-12 lg:py-20">
           <p className="mb-4 text-sm font-bold uppercase text-[#22D3EE]">
@@ -968,14 +968,14 @@ function FinalCta() {
           </p>
           <div className="mt-9 flex flex-col justify-center gap-3 sm:flex-row">
             <a
-              className="shine-button relative inline-flex h-12 items-center justify-center gap-2 overflow-hidden rounded-lg bg-gradient-to-r from-[#8B5CF6] via-[#EC4899] to-[#22D3EE] px-6 font-black text-white shadow-[0_0_46px_rgba(139,92,246,0.38)] transition hover:-translate-y-0.5"
+              className="shine-button relative inline-flex h-12 items-center justify-center gap-2 overflow-hidden rounded-lg bg-linear-to-r from-[#8B5CF6] via-[#EC4899] to-[#22D3EE] px-6 font-black text-white shadow-[0_0_46px_rgba(139,92,246,0.38)] transition hover:-translate-y-0.5"
               href="/sign-up"
             >
               <Rocket className="size-4" />
               Start Creating
             </a>
             <a
-              className="inline-flex h-12 items-center justify-center gap-2 rounded-lg border border-white/12 bg-white/[0.055] px-6 font-bold text-white transition hover:border-[#22D3EE]/45 hover:bg-white/[0.09]"
+              className="inline-flex h-12 items-center justify-center gap-2 rounded-lg border border-white/12 bg-white/5.5 px-6 font-bold text-white transition hover:border-[#22D3EE]/45 hover:bg-white/9"
               href="#themes"
             >
               <Palette className="size-4 text-[#22D3EE]" />
@@ -987,7 +987,7 @@ function FinalCta() {
             {["Cyberpunk", "Anime", "Hacker", "Space"].map((portal) => (
               <button
                 key={portal}
-                className="footer-portal rounded-lg border border-white/10 bg-white/[0.045] px-4 py-2 text-sm font-bold text-slate-300 transition hover:-translate-y-0.5 hover:border-[#22D3EE]/45 hover:text-white"
+                className="footer-portal rounded-lg border border-white/10 bg-white/4.5 px-4 py-2 text-sm font-bold text-slate-300 transition hover:-translate-y-0.5 hover:border-[#22D3EE]/45 hover:text-white"
               >
                 {portal}
               </button>
@@ -995,7 +995,7 @@ function FinalCta() {
           </div>
         </div>
 
-        <div className="h-px bg-gradient-to-r from-transparent via-white/14 to-transparent" />
+        <div className="h-px bg-linear-to-r from-transparent via-white/14 to-transparent" />
 
         <div className="grid gap-8 px-5 py-10 sm:px-8 md:grid-cols-2 lg:grid-cols-[1.2fr_repeat(4,1fr)] lg:px-12">
           <div>
@@ -1003,7 +1003,7 @@ function FinalCta() {
               <LogoOrb />
               <span className="text-xl font-black">
                 Poll
-                <span className="bg-gradient-to-r from-[#22D3EE] via-[#8B5CF6] to-[#EC4899] bg-clip-text text-transparent">
+                <span className="bg-linear-to-r from-[#22D3EE] via-[#8B5CF6] to-[#EC4899] bg-clip-text text-transparent">
                   IQ
                 </span>
               </span>
@@ -1011,7 +1011,7 @@ function FinalCta() {
             <p className="max-w-xs text-sm leading-6 text-slate-400">
               Interactive forms for the next generation.
             </p>
-            <div className="mt-6 inline-flex items-center gap-2 rounded-lg border border-white/10 bg-white/[0.045] px-3 py-2 text-xs font-bold text-slate-300">
+            <div className="mt-6 inline-flex items-center gap-2 rounded-lg border border-white/10 bg-white/4.5 px-3 py-2 text-xs font-bold text-slate-300">
               <Shield className="size-4 text-[#22D3EE]" />
               Universe Grid Online
             </div>
@@ -1066,7 +1066,7 @@ function Panel({
   return (
     <div className="rounded-lg border border-white/10 bg-[#030711]/80 p-4">
       <div className="mb-5 flex items-center gap-3">
-        <div className="grid size-9 place-items-center rounded-lg border border-white/10 bg-white/[0.05]">
+        <div className="grid size-9 place-items-center rounded-lg border border-white/10 bg-white/5">
           <Icon className="size-4 text-[#22D3EE]" />
         </div>
         <h3 className="font-black">{title}</h3>
@@ -1087,7 +1087,7 @@ function FloatingIcon({
 }) {
   return (
     <div
-      className={`PollIq-orbit absolute z-20 grid size-12 place-items-center rounded-lg border border-white/12 bg-white/[0.08] text-cyan-100 shadow-[0_0_34px_rgba(34,211,238,0.24)] backdrop-blur-xl ${className}`}
+      className={`PollIq-orbit absolute z-20 grid size-12 place-items-center rounded-lg border border-white/12 bg-white/8 text-cyan-100 shadow-[0_0_34px_rgba(34,211,238,0.24)] backdrop-blur-xl ${className}`}
       style={{ animationDelay: delay }}
     >
       <Icon className="size-5" />
