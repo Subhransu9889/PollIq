@@ -5,8 +5,8 @@
     "rootDir": "./src",
     "outDir": "./dist",
 
-    "moduleResolution": "NodeNext",
-    "module": "NodeNext",
+    "moduleResolution": "nodenext",
+    "module": "nodenext",
 
     // We don't need these for our final build
     "declarationMap": false,
