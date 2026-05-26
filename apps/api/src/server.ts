@@ -23,7 +23,7 @@ app.use(
     origin:
       env.NODE_ENV === "production" || env.NODE_ENV === "prod"
         ? env.CLIENT_URL
-        : "http://localhost:3000",
+        : [env.CLIENT_URL, "http://localhost:3000"].filter(Boolean),
     credentials: true,
   })
 );
