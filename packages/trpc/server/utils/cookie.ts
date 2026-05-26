@@ -9,7 +9,7 @@ const ONE_WEEK = 7 * ONE_DAY;
 const defaultCookieOptions: CookieOptions = {
     path: "/",
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production" ? true : false,
+    secure: process.env.NODE_ENV === "production",
     sameSite: "none",
     maxAge: ONE_WEEK, // 7 days
 }
