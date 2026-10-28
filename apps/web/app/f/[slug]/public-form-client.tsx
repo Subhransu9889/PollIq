@@ -12,6 +12,7 @@ import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
 import { Textarea } from "~/components/ui/textarea";
 import { trpc } from "~/trpc/client";
+import { resolveFormFont } from "~/lib/form-font";
 
 type FieldType =
   | "TEXT"
@@ -161,11 +162,22 @@ export default function PublicFormClient({ slug }: { slug: string }) {
     () => ((form?.fields ?? []) as PublicField[]).slice().sort((a, b) => a.order - b.order),
     [form?.fields],
   );
-  const visibleFields = useMemo(() => fields.filter((field) => shouldShowField(field, fields, answers)), [answers, fields]);
+  const visibleFields = useMemo(() => {
+    const visible: PublicField[] = [];
+    for (const field of fields) {
+      const condition = field.config?.condition;
+      if (condition && !visible.some((item) => item.id === fields[condition.fieldOrder]?.id))
+        continue;
+      if (shouldShowField(field, fields, answers)) visible.push(field);
+    }
+    return visible;
+  }, [answers, fields]);
   const activeTheme = resolvePublicTheme(form?.theme?.slug ?? form?.theme?.name ?? "glass");
   const branding = getBrandingFromFields(fields);
   const answeredCount = visibleFields.filter((field) => !isEmptyAnswer(answers[field.id])).length;
-  const progress = visibleFields.length ? Math.round((answeredCount / visibleFields.length) * 100) : 0;
+  const progress = visibleFields.length
+    ? Math.round((answeredCount / visibleFields.length) * 100)
+    : 0;
 
   if (formQuery.isLoading) {
     return (
@@ -181,7 +193,10 @@ export default function PublicFormClient({ slug }: { slug: string }) {
           </div>
           <div className="space-y-4 p-7">
             {Array.from({ length: 4 }, (_, index) => (
-              <div className="h-28 rounded-lg border border-white/10 bg-white/[0.05] shimmer" key={index} />
+              <div
+                className="h-28 rounded-lg border border-white/10 bg-white/[0.05] shimmer"
+                key={index}
+              />
             ))}
           </div>
         </section>
@@ -214,7 +229,7 @@ export default function PublicFormClient({ slug }: { slug: string }) {
     return (
       <main
         className={`theme-preview theme-${activeTheme.key} grid min-h-screen place-items-center px-6 ${branding.glassCards ? "" : "theme-solid-card"}`}
-        style={{ fontFamily: branding.fontFamily }}
+        style={{ fontFamily: resolveFormFont(branding.fontFamily) }}
       >
         <ThemeAtmosphere themeKey={activeTheme.key} />
         <section className="theme-form-card relative w-full max-w-lg p-6 text-center">
@@ -222,14 +237,19 @@ export default function PublicFormClient({ slug }: { slug: string }) {
             <Check className="size-6" />
           </div>
           <h1 className="theme-title mt-4 text-2xl font-black">
-            Thanks{getFirstName(respondentEmail) ? ` ${getFirstName(respondentEmail)}` : ""}, your response was received
+            Thanks{getFirstName(respondentEmail) ? ` ${getFirstName(respondentEmail)}` : ""}, your
+            response was received
           </h1>
           <p className="theme-muted mt-2 text-sm leading-6">
-            Your confirmation ID is {receiptId || "ready"}. You can keep a receipt or share confirmation with your team.
+            Your confirmation ID is {receiptId || "ready"}. You can keep a receipt or share
+            confirmation with your team.
           </p>
           <div className="mt-5 grid gap-2 sm:grid-cols-2">
             <Button asChild className="theme-submit-button">
-              <a download={`polliq-receipt-${receiptId || "response"}.txt`} href={`data:text/plain;charset=utf-8,${encodeURIComponent(receiptText)}`}>
+              <a
+                download={`polliq-receipt-${receiptId || "response"}.txt`}
+                href={`data:text/plain;charset=utf-8,${encodeURIComponent(receiptText)}`}
+              >
                 <Download className="size-4" />
                 Receipt
               </a>
@@ -237,8 +257,12 @@ export default function PublicFormClient({ slug }: { slug: string }) {
             <Button
               className="theme-submit-button"
               onClick={() => {
-                void navigator.clipboard.writeText(`Response received for ${form.title}. Confirmation: ${receiptId}`);
-                toast.success("Confirmation copied");
+                void navigator.clipboard
+                  .writeText(`Response received for ${form.title}. Confirmation: ${receiptId}`)
+                  .then(
+                    () => toast.success("Confirmation copied"),
+                    () => toast.error("Could not copy. Download your receipt instead."),
+                  );
               }}
               type="button"
             >
@@ -253,12 +277,20 @@ export default function PublicFormClient({ slug }: { slug: string }) {
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const missing = visibleFields.find((field) => field.required && isEmptyAnswer(answers[field.id]));
+    if (submitResponse.isPending) return;
+    const missing = visibleFields.find(
+      (field) =>
+        field.required &&
+        (isEmptyAnswer(answers[field.id]) ||
+          (field.type === "CHECKBOX" && answers[field.id] !== true)),
+    );
     if (missing) {
       toast.error(`Please answer: ${missing.label}`);
       return;
     }
-    const invalid = visibleFields.find((field) => getValidationState(field, answers[field.id]).tone === "invalid");
+    const invalid = visibleFields.find(
+      (field) => getValidationState(field, answers[field.id]).tone === "invalid",
+    );
     if (invalid) {
       toast.message("A field needs attention", { description: invalid.label });
       return;
@@ -271,12 +303,16 @@ export default function PublicFormClient({ slug }: { slug: string }) {
         value: answers[field.id]!,
       }));
 
-    const result = await submitResponse.mutateAsync({
-      formSlug: slug,
-      respondentEmail: respondentEmail.trim() || undefined,
-      answers: payloadAnswers,
-    });
-    setReceiptId(result.responseId);
+    try {
+      const result = await submitResponse.mutateAsync({
+        formSlug: slug,
+        respondentEmail: respondentEmail.trim() || undefined,
+        answers: payloadAnswers,
+      });
+      setReceiptId(result.responseId);
+    } catch {
+      /* Mutation errors are shown above the submit button and in a toast. */
+    }
   };
 
   return (
@@ -287,13 +323,16 @@ export default function PublicFormClient({ slug }: { slug: string }) {
       <form
         className={`theme-form-card relative mx-auto w-full max-w-3xl overflow-hidden ${branding.glassCards ? "" : "theme-solid-card"}`}
         onSubmit={submit}
-        style={{ fontFamily: branding.fontFamily }}
+        style={{ fontFamily: resolveFormFont(branding.fontFamily) }}
       >
         <div className="theme-form-header p-5 sm:p-7">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-3">
               {branding.logoUrl ? (
-                <div className="size-12 rounded-lg border border-white/20 bg-cover bg-center shadow-[0_12px_40px_rgba(0,0,0,0.28)]" style={{ backgroundImage: `url(${branding.logoUrl})` }} />
+                <div
+                  className="size-12 rounded-lg border border-white/20 bg-cover bg-center shadow-[0_12px_40px_rgba(0,0,0,0.28)]"
+                  style={{ backgroundImage: `url(${branding.logoUrl})` }}
+                />
               ) : null}
               <Badge className="theme-badge">{activeTheme.shortName}</Badge>
             </div>
@@ -324,10 +363,14 @@ export default function PublicFormClient({ slug }: { slug: string }) {
 
         <div className="p-5 sm:p-7">
           <div className="theme-field-card p-4">
-            <Label className="theme-label">Your email</Label>
+            <Label htmlFor="respondent-email" className="theme-label">
+              Your email (optional)
+            </Label>
             <div className="relative mt-2">
               <Mail className="theme-control-icon pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2" />
               <Input
+                id="respondent-email"
+                autoComplete="email"
                 className="theme-control pl-9"
                 onChange={(event) => setRespondentEmail(event.target.value)}
                 placeholder="name@example.com"
@@ -350,8 +393,13 @@ export default function PublicFormClient({ slug }: { slug: string }) {
             ))}
           </div>
 
+          {submitResponse.error && (
+            <p role="alert" className="mt-4 text-sm theme-label">
+              {submitResponse.error.message || "Your response could not be sent. Please try again."}
+            </p>
+          )}
           <div className="mt-6 flex flex-wrap items-center justify-between gap-3">
-            <p className="theme-muted text-xs font-semibold">{activeTheme.motion}</p>
+            <p className="theme-muted text-xs font-semibold">Powered by PollIQ</p>
             <Button
               className="theme-submit-button"
               disabled={submitResponse.isPending || visibleFields.length === 0}
@@ -382,9 +430,15 @@ function PublicFieldControl({
 }) {
   const validation = getValidationState(field, answer, answers);
   return (
-    <section className={`theme-field-card p-4 transition ${validation.tone === "valid" ? "is-valid" : ""}`}>
+    <section
+      className={`theme-field-card p-4 transition ${validation.tone === "valid" ? "is-valid" : ""}`}
+    >
       <div className="mb-3">
-        <Label className="theme-label text-base font-black">
+        <Label
+          htmlFor={`field-${field.id}`}
+          id={`label-${field.id}`}
+          className="theme-label text-base font-black"
+        >
           {index + 1}. {field.label}{" "}
           {field.required ? <span className="text-teal-200">*</span> : null}
         </Label>
@@ -393,7 +447,9 @@ function PublicFieldControl({
         ) : null}
       </div>
       {renderControl(field, answer, onChange)}
-      <div className={`mt-3 flex items-center gap-2 text-xs font-semibold ${validation.tone === "invalid" ? "theme-muted" : "text-teal-100"}`}>
+      <div
+        className={`mt-3 flex items-center gap-2 text-xs font-semibold ${validation.tone === "invalid" ? "theme-muted" : "text-teal-100"}`}
+      >
         {validation.tone === "valid" ? <Check className="success-check size-4" /> : null}
         <span>{validation.message}</span>
       </div>
@@ -409,6 +465,9 @@ function renderControl(
   if (field.type === "TEXTAREA") {
     return (
       <Textarea
+        id={`field-${field.id}`}
+        aria-labelledby={`label-${field.id}`}
+        required={field.required}
         className="theme-control min-h-28"
         maxLength={field.config?.maxLength}
         onChange={(event) => onChange(event.target.value)}
@@ -421,6 +480,9 @@ function renderControl(
   if (field.type === "SELECT") {
     return (
       <select
+        id={`field-${field.id}`}
+        aria-labelledby={`label-${field.id}`}
+        required={field.required}
         className="theme-control h-10 w-full rounded-md px-3 text-sm font-semibold outline-none"
         onChange={(event) => onChange(event.target.value)}
         value={typeof answer === "string" ? answer : ""}
@@ -468,7 +530,7 @@ function renderControl(
   }
 
   if (field.type === "RATING") {
-    const max = field.config?.max ?? 5;
+    const max = Math.min(10, field.config?.max ?? 5);
     return (
       <div className="flex flex-wrap gap-2">
         {Array.from({ length: max }, (_, index) => index + 1).map((rating) => (
@@ -477,6 +539,8 @@ function renderControl(
               answer === rating ? "is-selected" : ""
             }`}
             key={rating}
+            aria-label={`${field.label}: ${rating}`}
+            aria-pressed={answer === rating}
             onClick={() => onChange(rating)}
             type="button"
           >
@@ -489,6 +553,12 @@ function renderControl(
 
   return (
     <Input
+      id={`field-${field.id}`}
+      aria-labelledby={`label-${field.id}`}
+      required={field.required}
+      min={field.config?.min}
+      max={field.config?.max}
+      step={field.config?.step ?? "any"}
       className="theme-control"
       maxLength={field.config?.maxLength}
       onChange={(event) => {
@@ -543,7 +613,11 @@ function isEmptyAnswer(value: AnswerValue | undefined) {
   return false;
 }
 
-function shouldShowField(field: PublicField, fields: PublicField[], answers: Record<string, AnswerValue>) {
+function shouldShowField(
+  field: PublicField,
+  fields: PublicField[],
+  answers: Record<string, AnswerValue>,
+) {
   const condition = field.config?.condition;
   if (!condition) return true;
   const source = fields[condition.fieldOrder];
@@ -553,8 +627,13 @@ function shouldShowField(field: PublicField, fields: PublicField[], answers: Rec
   return String(answer) === condition.equals;
 }
 
-function getValidationState(field: PublicField, answer: AnswerValue | undefined, answers: Record<string, AnswerValue> = {}) {
-  if (!shouldShowField(field, [], answers)) return { tone: "idle" as const, message: "Hidden until relevant." };
+function getValidationState(
+  field: PublicField,
+  answer: AnswerValue | undefined,
+  answers: Record<string, AnswerValue> = {},
+) {
+  if (!shouldShowField(field, [], answers))
+    return { tone: "idle" as const, message: "Hidden until relevant." };
   if (isEmptyAnswer(answer)) {
     return {
       tone: "idle" as const,
@@ -563,30 +642,49 @@ function getValidationState(field: PublicField, answer: AnswerValue | undefined,
   }
 
   const text = typeof answer === "string" ? answer.trim() : "";
+  if (
+    (field.type === "NUMBER" || field.type === "RATING") &&
+    (typeof answer !== "number" ||
+      !Number.isFinite(answer) ||
+      answer < (field.config?.min ?? -Infinity) ||
+      answer > (field.config?.max ?? Infinity))
+  )
+    return { tone: "invalid" as const, message: "Enter a number within the allowed range." };
   if (field.type === "EMAIL" && text && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(text)) {
     return { tone: "invalid" as const, message: "Email format is almost there." };
   }
   if (field.config?.pattern === "url" && text) {
     try {
-      new URL(text);
+      if (!["http:", "https:"].includes(new URL(text).protocol)) throw new Error("Invalid URL");
     } catch {
       return { tone: "invalid" as const, message: "Use a full URL, like https://example.com." };
     }
   }
   if (field.config?.maxLength && text.length > field.config.maxLength) {
-    return { tone: "invalid" as const, message: `${text.length}/${field.config.maxLength} characters used.` };
+    return {
+      tone: "invalid" as const,
+      message: `${text.length}/${field.config.maxLength} characters used.`,
+    };
   }
   if (field.label.toLowerCase().includes("password") && text) {
-    const score = Number(text.length >= 8) + Number(/[A-Z]/.test(text)) + Number(/[0-9]/.test(text)) + Number(/[^A-Za-z0-9]/.test(text));
+    const score =
+      Number(text.length >= 8) +
+      Number(/[A-Z]/.test(text)) +
+      Number(/[0-9]/.test(text)) +
+      Number(/[^A-Za-z0-9]/.test(text));
     if (score < 3) return { tone: "idle" as const, message: "Password strength: building." };
     return { tone: "valid" as const, message: "Password strength looks good." };
   }
   if (field.label.toLowerCase().includes("username") && text) {
-    if (text.length < 3) return { tone: "idle" as const, message: "Usernames usually need 3+ characters." };
-    return { tone: "valid" as const, message: "Username looks available." };
+    if (text.length < 3)
+      return { tone: "idle" as const, message: "Usernames usually need 3+ characters." };
+    return { tone: "valid" as const, message: "Username format looks good." };
   }
   if (field.config?.maxLength && text) {
-    return { tone: "valid" as const, message: `${Math.max(0, field.config.maxLength - text.length)} characters left.` };
+    return {
+      tone: "valid" as const,
+      message: `${Math.max(0, field.config.maxLength - text.length)} characters left.`,
+    };
   }
 
   return { tone: "valid" as const, message: "Looks good." };
@@ -620,11 +718,10 @@ function resolvePublicTheme(value: string): PublicTheme {
   const normalized = value.toLowerCase();
   return (
     publicThemes.find(
-      (theme) =>
-        theme.key === normalized ||
-        theme.name.toLowerCase() === normalized ||
-        theme.name.toLowerCase().includes(normalized),
-    ) ?? publicThemes[publicThemes.length - 1]!
+      (theme) => theme.key === normalized || theme.name.toLowerCase() === normalized,
+    ) ??
+    publicThemes.find((theme) => theme.name.toLowerCase().includes(normalized)) ??
+    publicThemes[publicThemes.length - 1]!
   );
 }
 

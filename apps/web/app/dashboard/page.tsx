@@ -1,6 +1,10 @@
 "use client";
 
 import {
+  LogOut,
+  Download,
+  Menu,
+  X,
   Activity,
   BarChart3,
   Bell,
@@ -40,8 +44,9 @@ import {
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { CSSProperties, Dispatch, MouseEvent, ReactNode, SetStateAction } from "react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useId, cloneElement, isValidElement } from "react";
 import { toast } from "sonner";
+import { useQueryClient } from "@tanstack/react-query";
 import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
@@ -51,9 +56,31 @@ import { Switch } from "~/components/ui/switch";
 import { Textarea } from "~/components/ui/textarea";
 import { useUserInfo } from "~/hooks/api/auth";
 import { trpc } from "~/trpc/client";
+import { env } from "~/env.js";
+import { QuestionPreview } from "~/components/dashboard/question-preview";
+import { WorkspaceHome } from "~/components/dashboard/workspace-home";
+import { resolveFormFont } from "~/lib/form-font";
+import { exportResponsesCsv } from "~/lib/response-export";
 
-type SectionId = "dashboard" | "forms" | "explore" | "themes" | "analytics" | "responses" | "api" | "settings";
-type FieldType = "TEXT" | "TEXTAREA" | "EMAIL" | "NUMBER" | "SELECT" | "MULTI_SELECT" | "CHECKBOX" | "RATING" | "DATE";
+type SectionId =
+  | "dashboard"
+  | "forms"
+  | "explore"
+  | "themes"
+  | "analytics"
+  | "responses"
+  | "api"
+  | "settings";
+type FieldType =
+  | "TEXT"
+  | "TEXTAREA"
+  | "EMAIL"
+  | "NUMBER"
+  | "SELECT"
+  | "MULTI_SELECT"
+  | "CHECKBOX"
+  | "RATING"
+  | "DATE";
 type Visibility = "PUBLIC" | "UNLISTED" | "PRIVATE";
 type Status = "DRAFT" | "PUBLISHED" | "ARCHIVED";
 
@@ -122,14 +149,13 @@ type FormResponse = {
 };
 
 const navigation = [
-  { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { id: "forms", label: "Forms", icon: ClipboardList },
-  { id: "explore", label: "Explore", icon: Sparkles },
+  { id: "dashboard", label: "Overview", icon: LayoutDashboard },
+  { id: "forms", label: "Form builder", icon: ClipboardList },
+  { id: "explore", label: "Templates", icon: Sparkles },
   { id: "themes", label: "Themes", icon: Palette },
   { id: "analytics", label: "Analytics", icon: BarChart3 },
   { id: "responses", label: "Responses", icon: MessageSquareText },
   { id: "api", label: "API Docs", icon: Command },
-  { id: "settings", label: "Settings", icon: Settings },
 ] satisfies Array<{ id: SectionId; label: string; icon: LucideIcon }>;
 
 const fieldTypes = [
@@ -147,19 +173,40 @@ const fieldTypes = [
 const optionFieldTypes = new Set<FieldType>(["SELECT", "MULTI_SELECT"]);
 const AUTO_SAVE_KEY = "polliq.dashboard.recoveredDraft.v1";
 
-type TemplateCategory = "Trending" | "Anime" | "Cyberpunk" | "Startup" | "Gaming";
-type ThemeKey = "cyberpunk" | "sakura" | "hacker" | "space" | "gaming" | "liquid" | "startup" | "xp" | "glass";
-type ThemeCategory = "All" | "Cyberpunk" | "Anime" | "Hacker" | "Space" | "Gaming" | "Premium" | "Business" | "Retro" | "Default";
+type TemplateCategory = "All" | "Anime" | "Cyberpunk" | "Startup" | "Gaming";
+type ThemeKey =
+  | "cyberpunk"
+  | "sakura"
+  | "hacker"
+  | "space"
+  | "gaming"
+  | "liquid"
+  | "startup"
+  | "xp"
+  | "glass";
+type ThemeCategory =
+  | "All"
+  | "Cyberpunk"
+  | "Anime"
+  | "Hacker"
+  | "Space"
+  | "Gaming"
+  | "Premium"
+  | "Business"
+  | "Retro"
+  | "Default";
 
 type TemplateCard = {
   category: TemplateCategory;
   title: string;
   description: string;
   gradient: string;
-  stats: string;
-  completion: number;
   theme: string;
-  fields: Array<Pick<DraftField, "type" | "label" | "placeholder" | "required" | "config"> & { description?: string }>;
+  fields: Array<
+    Pick<DraftField, "type" | "label" | "placeholder" | "required" | "config"> & {
+      description?: string;
+    }
+  >;
 };
 
 type ThemeCard = {
@@ -171,80 +218,267 @@ type ThemeCard = {
   vibe: string;
   surface: string;
   accent: string;
-  conversion: string;
   motion: string;
   typography: string;
   button: string;
 };
 
 const themeCollections = [
-  { key: "cyberpunk", category: "Cyberpunk", name: "Cyberpunk Neon City", shortName: "Cyberpunk", tone: "Neon city, hacker energy, futuristic nightlife.", vibe: "#0B0F1A / #FF00FF / #00E5FF / #8B5CF6", surface: "from-[#0B0F1A] via-[#1a0b2e] to-[#001f2f]", accent: "Pink / Cyan / Violet", conversion: "+31%", motion: "Grid, holograms, particles", typography: "Space Grotesk + Orbitron", button: "Pink to cyan gradient" },
-  { key: "sakura", category: "Anime", name: "Anime Sakura Dream", shortName: "Sakura", tone: "Dreamy, soft, cinematic anime with falling petals.", vibe: "#FDF2F8 / #F9A8D4 / #C084FC / #FBCFE8", surface: "from-[#FDF2F8] via-[#FBCFE8] to-[#C084FC]", accent: "Pink / Lavender", conversion: "+28%", motion: "Falling sakura petals", typography: "Poppins + Satoshi", button: "Soft rose glass" },
-  { key: "hacker", category: "Hacker", name: "Hacker Terminal", shortName: "Terminal", tone: "Matrix, Linux terminal, typing prompts, CRT grit.", vibe: "#000000 / #00FF66 / #0D1117", surface: "from-black via-[#05140b] to-[#0D1117]", accent: "Phosphor green", conversion: "+26%", motion: "Matrix rain + typing", typography: "JetBrains Mono + Geist Mono", button: "> continue" },
-  { key: "space", category: "Space", name: "Space Mission Control", shortName: "Space", tone: "NASA dashboard, space station UI, planet exploration.", vibe: "#020617 / #38BDF8 / #818CF8 / #E0F2FE", surface: "from-[#020617] via-[#0c1b3b] to-[#111052]", accent: "Sky / Indigo", conversion: "+22%", motion: "Stars, orbit lines, radar", typography: "Geist + Orbitron", button: "Floating mission buttons" },
-  { key: "gaming", category: "Gaming", name: "Gaming Arena RGB", shortName: "Gaming", tone: "Esports dashboard with HUD lines and energy particles.", vibe: "#111827 / #EF4444 / #F59E0B / #10B981", surface: "from-[#111827] via-[#3b1020] to-[#082619]", accent: "Red / Gold / Green", conversion: "+20%", motion: "Animated glowing borders", typography: "Rajdhani + Exo 2", button: "High contrast arena CTA" },
-  { key: "liquid", category: "Premium", name: "Apple Liquid Glass", shortName: "Liquid", tone: "Minimal, luxury, Arc-like glass with reflective motion.", vibe: "White glass / soft gradients", surface: "from-white via-[#dff7ff] to-[#f7e8ff]", accent: "Pearl / Blue / Violet", conversion: "+24%", motion: "Liquid reflection hover", typography: "Geist + Satoshi", button: "Reflective glass pill" },
-  { key: "startup", category: "Business", name: "Startup Pitch Deck", shortName: "Startup", tone: "Linear, Vercel, Framer energy for business forms.", vibe: "#0F172A / #6366F1 / #06B6D4", surface: "from-[#0F172A] via-[#182553] to-[#052f3b]", accent: "Indigo / Cyan", conversion: "+21%", motion: "Clean dashboard glow", typography: "Geist + Inter", button: "Premium SaaS action" },
-  { key: "xp", category: "Retro", name: "Retro Windows XP", shortName: "Windows XP", tone: "Old internet nostalgia with pixel shadows and XP buttons.", vibe: "Bliss blue / grass green / chrome", surface: "from-[#245edb] via-[#3b8cff] to-[#58c241]", accent: "XP blue / Meadow", conversion: "+17%", motion: "CRT blur + desktop shine", typography: "Tahoma + system", button: "Classic XP button" },
-  { key: "glass", category: "Default", name: "Glassmorphic Dark", shortName: "Glass", tone: "Premium futuristic default with layered blur and subtle glow.", vibe: "Dark blur / smooth gradients", surface: "from-[#05070d] via-[#101820] to-[#241039]", accent: "Teal / Fuchsia", conversion: "+23%", motion: "Layered glass glow", typography: "Geist Sans", button: "Clean glass action" },
+  {
+    key: "cyberpunk",
+    category: "Cyberpunk",
+    name: "Cyberpunk Neon City",
+    shortName: "Cyberpunk",
+    tone: "Neon city, hacker energy, futuristic nightlife.",
+    vibe: "#0B0F1A / #FF00FF / #00E5FF / #8B5CF6",
+    surface: "from-[#0B0F1A] via-[#1a0b2e] to-[#001f2f]",
+    accent: "Pink / Cyan / Violet",
+    motion: "Grid, holograms, particles",
+    typography: "Space Grotesk + Orbitron",
+    button: "Pink to cyan gradient",
+  },
+  {
+    key: "sakura",
+    category: "Anime",
+    name: "Anime Sakura Dream",
+    shortName: "Sakura",
+    tone: "Dreamy, soft, cinematic anime with falling petals.",
+    vibe: "#FDF2F8 / #F9A8D4 / #C084FC / #FBCFE8",
+    surface: "from-[#FDF2F8] via-[#FBCFE8] to-[#C084FC]",
+    accent: "Pink / Lavender",
+    motion: "Falling sakura petals",
+    typography: "Poppins + Satoshi",
+    button: "Soft rose glass",
+  },
+  {
+    key: "hacker",
+    category: "Hacker",
+    name: "Hacker Terminal",
+    shortName: "Terminal",
+    tone: "Matrix, Linux terminal, typing prompts, CRT grit.",
+    vibe: "#000000 / #00FF66 / #0D1117",
+    surface: "from-black via-[#05140b] to-[#0D1117]",
+    accent: "Phosphor green",
+    motion: "Matrix rain + typing",
+    typography: "JetBrains Mono + Geist Mono",
+    button: "> continue",
+  },
+  {
+    key: "space",
+    category: "Space",
+    name: "Space Mission Control",
+    shortName: "Space",
+    tone: "NASA dashboard, space station UI, planet exploration.",
+    vibe: "#020617 / #38BDF8 / #818CF8 / #E0F2FE",
+    surface: "from-[#020617] via-[#0c1b3b] to-[#111052]",
+    accent: "Sky / Indigo",
+    motion: "Stars, orbit lines, radar",
+    typography: "Geist + Orbitron",
+    button: "Floating mission buttons",
+  },
+  {
+    key: "gaming",
+    category: "Gaming",
+    name: "Gaming Arena RGB",
+    shortName: "Gaming",
+    tone: "Esports dashboard with HUD lines and energy particles.",
+    vibe: "#111827 / #EF4444 / #F59E0B / #10B981",
+    surface: "from-[#111827] via-[#3b1020] to-[#082619]",
+    accent: "Red / Gold / Green",
+    motion: "Animated glowing borders",
+    typography: "Rajdhani + Exo 2",
+    button: "High contrast arena CTA",
+  },
+  {
+    key: "liquid",
+    category: "Premium",
+    name: "Apple Liquid Glass",
+    shortName: "Liquid",
+    tone: "Minimal, luxury, Arc-like glass with reflective motion.",
+    vibe: "White glass / soft gradients",
+    surface: "from-white via-[#dff7ff] to-[#f7e8ff]",
+    accent: "Pearl / Blue / Violet",
+    motion: "Liquid reflection hover",
+    typography: "Geist + Satoshi",
+    button: "Reflective glass pill",
+  },
+  {
+    key: "startup",
+    category: "Business",
+    name: "Startup Pitch Deck",
+    shortName: "Startup",
+    tone: "Linear, Vercel, Framer energy for business forms.",
+    vibe: "#0F172A / #6366F1 / #06B6D4",
+    surface: "from-[#0F172A] via-[#182553] to-[#052f3b]",
+    accent: "Indigo / Cyan",
+    motion: "Clean dashboard glow",
+    typography: "Geist + Inter",
+    button: "Premium SaaS action",
+  },
+  {
+    key: "xp",
+    category: "Retro",
+    name: "Retro Windows XP",
+    shortName: "Windows XP",
+    tone: "Old internet nostalgia with pixel shadows and XP buttons.",
+    vibe: "Bliss blue / grass green / chrome",
+    surface: "from-[#245edb] via-[#3b8cff] to-[#58c241]",
+    accent: "XP blue / Meadow",
+    motion: "CRT blur + desktop shine",
+    typography: "Tahoma + system",
+    button: "Classic XP button",
+  },
+  {
+    key: "glass",
+    category: "Default",
+    name: "Glassmorphic Dark",
+    shortName: "Glass",
+    tone: "Premium futuristic default with layered blur and subtle glow.",
+    vibe: "Dark blur / smooth gradients",
+    surface: "from-[#05070d] via-[#101820] to-[#241039]",
+    accent: "Teal / Fuchsia",
+    motion: "Layered glass glow",
+    typography: "Geist Sans",
+    button: "Clean glass action",
+  },
 ] satisfies ThemeCard[];
 
 const templateCards = [
   {
-    category: "Trending",
+    category: "All",
     title: "Job Application",
     description: "Role, portfolio, availability, salary range, and recruiter follow-up.",
     gradient: "from-emerald-300 via-cyan-400 to-blue-500",
-    stats: "12.2K uses",
-    completion: 86,
     theme: "Startup Pitch Deck",
     fields: [
       { type: "TEXT", label: "Full name", placeholder: "Your name", required: true },
-      { type: "EMAIL", label: "Best email for updates", placeholder: "name@example.com", required: true },
-      { type: "TEXT", label: "Portfolio or LinkedIn URL", placeholder: "https://...", required: true, config: { pattern: "url" } },
-      { type: "SELECT", label: "Preferred interview window", placeholder: "Choose one", required: true, config: { options: [{ label: "This week", value: "this-week" }, { label: "Next week", value: "next-week" }, { label: "Flexible", value: "flexible" }] } },
+      {
+        type: "EMAIL",
+        label: "Best email for updates",
+        placeholder: "name@example.com",
+        required: true,
+      },
+      {
+        type: "TEXT",
+        label: "Portfolio or LinkedIn URL",
+        placeholder: "https://...",
+        required: true,
+        config: { pattern: "url" },
+      },
+      {
+        type: "SELECT",
+        label: "Preferred interview window",
+        placeholder: "Choose one",
+        required: true,
+        config: {
+          options: [
+            { label: "This week", value: "this-week" },
+            { label: "Next week", value: "next-week" },
+            { label: "Flexible", value: "flexible" },
+          ],
+        },
+      },
     ],
   },
   {
-    category: "Trending",
+    category: "All",
     title: "Event Registration",
     description: "Attendee details, meal preferences, session choices, and confirmation flow.",
     gradient: "from-sky-300 via-indigo-400 to-fuchsia-500",
-    stats: "9.6K uses",
-    completion: 83,
     theme: "Apple Liquid Glass",
     fields: [
-      { type: "EMAIL", label: "Where should we send your ticket?", placeholder: "name@example.com", required: true },
-      { type: "SELECT", label: "Which session are you attending?", placeholder: "Choose session", required: true, config: { options: [{ label: "Keynote", value: "keynote" }, { label: "Workshop", value: "workshop" }, { label: "Networking", value: "networking" }] } },
+      {
+        type: "EMAIL",
+        label: "Where should we send your ticket?",
+        placeholder: "name@example.com",
+        required: true,
+      },
+      {
+        type: "SELECT",
+        label: "Which session are you attending?",
+        placeholder: "Choose session",
+        required: true,
+        config: {
+          options: [
+            { label: "Keynote", value: "keynote" },
+            { label: "Workshop", value: "workshop" },
+            { label: "Networking", value: "networking" },
+          ],
+        },
+      },
       { type: "CHECKBOX", label: "Send me calendar updates", placeholder: "", required: false },
     ],
   },
   {
-    category: "Trending",
+    category: "All",
     title: "Hackathon Signup",
     description: "Team size, track, skills, and Discord readiness for fast onboarding.",
     gradient: "from-lime-300 via-teal-400 to-violet-500",
-    stats: "6.3K uses",
-    completion: 81,
     theme: "Hacker Terminal",
     fields: [
       { type: "TEXT", label: "Team or hacker name", placeholder: "Team name", required: true },
-      { type: "MULTI_SELECT", label: "Skills you bring", placeholder: "", required: true, config: { options: [{ label: "Frontend", value: "frontend" }, { label: "Backend", value: "backend" }, { label: "Design", value: "design" }, { label: "AI", value: "ai" }] } },
-      { type: "SELECT", label: "Preferred track", placeholder: "Choose track", required: true, config: { options: [{ label: "AI", value: "ai" }, { label: "Climate", value: "climate" }, { label: "Fintech", value: "fintech" }] } },
+      {
+        type: "MULTI_SELECT",
+        label: "Skills you bring",
+        placeholder: "",
+        required: true,
+        config: {
+          options: [
+            { label: "Frontend", value: "frontend" },
+            { label: "Backend", value: "backend" },
+            { label: "Design", value: "design" },
+            { label: "AI", value: "ai" },
+          ],
+        },
+      },
+      {
+        type: "SELECT",
+        label: "Preferred track",
+        placeholder: "Choose track",
+        required: true,
+        config: {
+          options: [
+            { label: "AI", value: "ai" },
+            { label: "Climate", value: "climate" },
+            { label: "Fintech", value: "fintech" },
+          ],
+        },
+      },
     ],
   },
   {
-    category: "Trending",
+    category: "All",
     title: "Creator Drop Waitlist",
     description: "Launch signup with audience intent, email capture, and hype scoring.",
     gradient: "from-teal-300 via-sky-400 to-fuchsia-500",
-    stats: "8.4K uses",
-    completion: 82,
     theme: "Cyberpunk Neon City",
     fields: [
-      { type: "EMAIL", label: "Where should we send your invite?", placeholder: "name@example.com", required: true },
-      { type: "SELECT", label: "What are you most excited about?", placeholder: "Choose one", required: true, config: { options: [{ label: "Early access", value: "early-access" }, { label: "Community", value: "community" }, { label: "Creator tools", value: "creator-tools" }] } },
-      { type: "RATING", label: "How excited are you?", placeholder: "", required: true, config: { min: 1, max: 5, step: 1 } },
+      {
+        type: "EMAIL",
+        label: "Where should we send your invite?",
+        placeholder: "name@example.com",
+        required: true,
+      },
+      {
+        type: "SELECT",
+        label: "What are you most excited about?",
+        placeholder: "Choose one",
+        required: true,
+        config: {
+          options: [
+            { label: "Early access", value: "early-access" },
+            { label: "Community", value: "community" },
+            { label: "Creator tools", value: "creator-tools" },
+          ],
+        },
+      },
+      {
+        type: "RATING",
+        label: "How excited are you?",
+        placeholder: "",
+        required: true,
+        config: { min: 1, max: 5, step: 1 },
+      },
     ],
   },
   {
@@ -252,13 +486,33 @@ const templateCards = [
     title: "Anime Convention Form",
     description: "Cosplay, panels, merch interest, and attendee preferences in one cinematic flow.",
     gradient: "from-pink-400 via-rose-300 to-fuchsia-500",
-    stats: "5.9K uses",
-    completion: 76,
     theme: "Anime Sakura Dream",
     fields: [
-      { type: "TEXT", label: "What name should appear on your badge?", placeholder: "Your display name", required: true },
-      { type: "SELECT", label: "Which panel are you most interested in?", placeholder: "Choose a panel", required: true, config: { options: [{ label: "Voice actors", value: "voice-actors" }, { label: "Cosplay showcase", value: "cosplay" }, { label: "Manga workshop", value: "manga" }] } },
-      { type: "TEXTAREA", label: "What would make the event unforgettable?", placeholder: "Tell us your idea", required: false },
+      {
+        type: "TEXT",
+        label: "What name should appear on your badge?",
+        placeholder: "Your display name",
+        required: true,
+      },
+      {
+        type: "SELECT",
+        label: "Which panel are you most interested in?",
+        placeholder: "Choose a panel",
+        required: true,
+        config: {
+          options: [
+            { label: "Voice actors", value: "voice-actors" },
+            { label: "Cosplay showcase", value: "cosplay" },
+            { label: "Manga workshop", value: "manga" },
+          ],
+        },
+      },
+      {
+        type: "TEXTAREA",
+        label: "What would make the event unforgettable?",
+        placeholder: "Tell us your idea",
+        required: false,
+      },
     ],
   },
   {
@@ -266,13 +520,33 @@ const templateCards = [
     title: "Beta Access Application",
     description: "High-signal beta signup with persona routing and urgency indicators.",
     gradient: "from-cyan-300 via-violet-500 to-fuchsia-500",
-    stats: "7.1K uses",
-    completion: 88,
     theme: "Cyberpunk Neon City",
     fields: [
-      { type: "EMAIL", label: "Enter your access email", placeholder: "operator@domain.com", required: true },
-      { type: "SELECT", label: "What describes you best?", placeholder: "Choose role", required: true, config: { options: [{ label: "Founder", value: "founder" }, { label: "Designer", value: "designer" }, { label: "Engineer", value: "engineer" }] } },
-      { type: "TEXTAREA", label: "What workflow are you trying to upgrade?", placeholder: "Describe your current pain", required: true },
+      {
+        type: "EMAIL",
+        label: "Enter your access email",
+        placeholder: "operator@domain.com",
+        required: true,
+      },
+      {
+        type: "SELECT",
+        label: "What describes you best?",
+        placeholder: "Choose role",
+        required: true,
+        config: {
+          options: [
+            { label: "Founder", value: "founder" },
+            { label: "Designer", value: "designer" },
+            { label: "Engineer", value: "engineer" },
+          ],
+        },
+      },
+      {
+        type: "TEXTAREA",
+        label: "What workflow are you trying to upgrade?",
+        placeholder: "Describe your current pain",
+        required: true,
+      },
     ],
   },
   {
@@ -280,13 +554,27 @@ const templateCards = [
     title: "Customer Discovery Sprint",
     description: "Interview-ready form for validating pain, budget, urgency, and segments.",
     gradient: "from-teal-300 via-sky-400 to-indigo-500",
-    stats: "3.8K uses",
-    completion: 71,
     theme: "Startup Pitch Deck",
     fields: [
-      { type: "TEXT", label: "What job are you trying to get done?", placeholder: "Describe the job", required: true },
-      { type: "RATING", label: "How painful is this today?", placeholder: "", required: true, config: { min: 1, max: 10, step: 1 } },
-      { type: "EMAIL", label: "Can we follow up?", placeholder: "name@company.com", required: false },
+      {
+        type: "TEXT",
+        label: "What job are you trying to get done?",
+        placeholder: "Describe the job",
+        required: true,
+      },
+      {
+        type: "RATING",
+        label: "How painful is this today?",
+        placeholder: "",
+        required: true,
+        config: { min: 1, max: 10, step: 1 },
+      },
+      {
+        type: "EMAIL",
+        label: "Can we follow up?",
+        placeholder: "name@company.com",
+        required: false,
+      },
     ],
   },
   {
@@ -294,23 +582,31 @@ const templateCards = [
     title: "Tournament Signup",
     description: "Player registration with roles, platform, team preference, and skill rating.",
     gradient: "from-violet-500 via-orange-400 to-rose-400",
-    stats: "4.6K uses",
-    completion: 79,
     theme: "Gaming Arena RGB",
     fields: [
       { type: "TEXT", label: "What is your gamer tag?", placeholder: "PlayerOne", required: true },
-      { type: "SELECT", label: "Primary role", placeholder: "Choose role", required: true, config: { options: [{ label: "Duelist", value: "duelist" }, { label: "Support", value: "support" }, { label: "Strategist", value: "strategist" }] } },
-      { type: "CHECKBOX", label: "I can join the Discord before match day", placeholder: "", required: true },
+      {
+        type: "SELECT",
+        label: "Primary role",
+        placeholder: "Choose role",
+        required: true,
+        config: {
+          options: [
+            { label: "Duelist", value: "duelist" },
+            { label: "Support", value: "support" },
+            { label: "Strategist", value: "strategist" },
+          ],
+        },
+      },
+      {
+        type: "CHECKBOX",
+        label: "I can join the Discord before match day",
+        placeholder: "",
+        required: true,
+      },
     ],
   },
 ] satisfies TemplateCard[];
-
-const quickActivity = [
-  ["Someone from Tokyo submitted your form", "2m ago", Globe2],
-  ["Cyberpunk theme was applied", "11m ago", Palette],
-  ["Startup Pitch reached 1K responses", "28m ago", TrendingUp],
-  ["Question 5 drop-off insight generated", "1h ago", Wand2],
-] satisfies Array<[string, string, LucideIcon]>;
 
 const emptyField = (order: number, type: FieldType = "TEXT"): DraftField => ({
   type,
@@ -352,23 +648,52 @@ const newDraftForm = (): DraftForm => ({
 export default function DashboardPage() {
   const router = useRouter();
   const utils = trpc.useUtils();
+  const queryClient = useQueryClient();
   const { error, isLoading, user } = useUserInfo();
-  const [activeSection, setActiveSection] = useState<SectionId>("dashboard");
+  const signOut = trpc.auth.signOut.useMutation({
+    onSuccess: () => {
+      queryClient.clear();
+      router.replace("/sign-in");
+    },
+    onError: () => toast.error("Could not sign out. Please try again."),
+  });
+  const [activeSection, setSection] = useState<SectionId>("dashboard");
+  const setActiveSection = (section: SectionId) => {
+    setSection(section);
+    window.history.replaceState(null, "", `#${section}`);
+  };
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [isCreating, setIsCreating] = useState(false);
   const [selectedFormId, setSelectedFormId] = useState<string | null>(null);
   const [draft, setDraft] = useState<DraftForm>(() => newDraftForm());
   const [selectedFieldIndex, setSelectedFieldIndex] = useState(0);
-  const [lastSavedSnapshot, setLastSavedSnapshot] = useState("");
+  const [lastSavedSnapshot, setLastSavedSnapshot] = useState(() =>
+    JSON.stringify(toPayload(draft)),
+  );
   const [device, setDevice] = useState<"Desktop" | "Tablet" | "Mobile">("Desktop");
   const [theme, setTheme] = useState("Glassmorphic Dark");
 
+  const draftStorageKey = user?.id ? `${AUTO_SAVE_KEY}.${user.id}` : null;
+
   const formsQuery = trpc.form.listMyForms.useQuery(undefined, { enabled: Boolean(user) });
-  const selectedFormQuery = trpc.form.getFormById.useQuery({ id: selectedFormId ?? "" }, { enabled: Boolean(selectedFormId && user) });
-  const responsesQuery = trpc.form.getFormResponses.useQuery({ formId: selectedFormId ?? "" }, { enabled: Boolean(selectedFormId && user) });
+  const selectedFormQuery = trpc.form.getFormById.useQuery(
+    { id: selectedFormId ?? "" },
+    {
+      enabled: Boolean(selectedFormId && user),
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: false,
+    },
+  );
+  const responsesQuery = trpc.form.getFormResponses.useQuery(
+    { formId: selectedFormId ?? "" },
+    { enabled: Boolean(selectedFormId && user) },
+  );
 
   const createForm = trpc.form.createForm.useMutation({
     onSuccess: async (result) => {
       toast.success("Form created");
+      setIsCreating(false);
       setSelectedFormId(result.id);
       await utils.form.listMyForms.invalidate();
     },
@@ -396,19 +721,46 @@ export default function DashboardPage() {
     onError: (mutationError) => toast.error(mutationError.message || "Could not unpublish form"),
   });
 
-  const forms = useMemo(() => (formsQuery.data ?? []) as FormSummary[], [formsQuery.data]);
-  const responseData = responsesQuery.data as FormResponse | undefined;
+  const forms: FormSummary[] = useMemo(() => formsQuery.data ?? [], [formsQuery.data]);
+  const responseData: FormResponse | undefined = responsesQuery.data;
   const selectedField = draft.fields[selectedFieldIndex] ?? draft.fields[0];
   const displayName = user?.fullName?.split(" ")[0] ?? "there";
   const draftSnapshot = useMemo(() => JSON.stringify(toPayload(draft)), [draft]);
   const hasUnsavedChanges = draftSnapshot !== lastSavedSnapshot;
-  const isMutating = createForm.isPending || updateForm.isPending || publishForm.isPending || unpublishForm.isPending;
-  const publicUrl = typeof window === "undefined" ? `/f/${draft.slug}` : `${window.location.origin}/f/${draft.slug}`;
+  const isMutating =
+    createForm.isPending ||
+    updateForm.isPending ||
+    publishForm.isPending ||
+    unpublishForm.isPending;
+  const publicUrl =
+    typeof window === "undefined"
+      ? `/f/${draft.slug}`
+      : `${window.location.origin}/f/${draft.slug}`;
   const totals = useMemo(() => getTotals(forms), [forms]);
 
   useEffect(() => {
-    if (error) router.replace("/sign-in");
+    if (error?.data?.code === "UNAUTHORIZED") router.replace("/sign-in");
   }, [error, router]);
+
+  useEffect(() => {
+    const readSection = () => {
+      const section = window.location.hash.slice(1);
+      if (navigation.some((item) => item.id === section)) setSection(section as SectionId);
+    };
+    readSection();
+    window.addEventListener("hashchange", readSection);
+    return () => window.removeEventListener("hashchange", readSection);
+  }, []);
+
+  useEffect(() => {
+    if (!hasUnsavedChanges) return;
+    const guard = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", guard);
+    return () => window.removeEventListener("beforeunload", guard);
+  }, [hasUnsavedChanges]);
 
   useEffect(() => {
     const openExplore = () => setActiveSection("explore");
@@ -417,15 +769,14 @@ export default function DashboardPage() {
   }, []);
 
   useEffect(() => {
-    if (!selectedFormId && forms[0]) setSelectedFormId(forms[0].id);
-  }, [forms, selectedFormId]);
+    if (!isCreating && !selectedFormId && forms[0]) setSelectedFormId(forms[0].id);
+  }, [forms, selectedFormId, isCreating]);
 
   useEffect(() => {
-    if (!formsQuery.isFetched || forms.length || selectedFormId) return;
-    const savedDraft = window.localStorage.getItem(AUTO_SAVE_KEY);
-    if (!savedDraft) return;
-
+    if (!draftStorageKey || !formsQuery.isFetched || forms.length || selectedFormId) return;
     try {
+      const savedDraft = window.localStorage.getItem(draftStorageKey);
+      if (!savedDraft) return;
       const recovered = JSON.parse(savedDraft) as DraftForm;
       if (!recovered?.title || !Array.isArray(recovered.fields)) return;
       setDraft(recovered);
@@ -433,21 +784,26 @@ export default function DashboardPage() {
       setLastSavedSnapshot("");
       toast.success("Recovered your draft");
     } catch {
-      window.localStorage.removeItem(AUTO_SAVE_KEY);
+      /* Invalid or unavailable local storage must not prevent server saves. */
     }
-  }, [forms.length, formsQuery.isFetched, selectedFormId]);
+  }, [forms.length, formsQuery.isFetched, selectedFormId, draftStorageKey]);
 
   useEffect(() => {
+    if (!draftStorageKey || !formsQuery.isFetched) return;
     const timer = window.setTimeout(() => {
-      window.localStorage.setItem(AUTO_SAVE_KEY, JSON.stringify(draft));
+      try {
+        window.localStorage.setItem(draftStorageKey, JSON.stringify(draft));
+      } catch {
+        /* Saving to the server remains available. */
+      }
     }, 700);
 
     return () => window.clearTimeout(timer);
-  }, [draft]);
+  }, [draft, draftStorageKey, formsQuery.isFetched]);
 
   useEffect(() => {
     const form = selectedFormQuery.data;
-    if (!form) return;
+    if (!form || form.id !== selectedFormId || isCreating) return;
 
     const nextDraft = {
       id: form.id,
@@ -473,15 +829,48 @@ export default function DashboardPage() {
     setTheme(resolveTheme(nextDraft.themeSlug ?? "glass").name);
     setLastSavedSnapshot(JSON.stringify(toPayload(nextDraft)));
     setSelectedFieldIndex(0);
-  }, [selectedFormQuery.data]);
+  }, [selectedFormQuery.data, selectedFormId, isCreating]);
 
   if (isLoading || (!user && !error)) return <LoadingState />;
-  if (!user) return null;
+  if (!user)
+    return (
+      <main className="grid min-h-svh place-items-center bg-[#111113] px-6 text-white">
+        <section className="max-w-md rounded-xl border border-white/10 bg-white/5 p-8">
+          <h1 className="text-xl font-semibold">Couldn’t open your workspace</h1>
+          <p className="mt-3 text-sm text-slate-400">Check your connection and try again.</p>
+          <Button className="mt-5" onClick={() => void utils.auth.getUserInfo.invalidate()}>
+            Try again
+          </Button>
+          <Link className="ml-4 text-sm underline" href="/sign-in">
+            Sign in
+          </Link>
+        </section>
+      </main>
+    );
+
+  const canReplaceDraft = () =>
+    !hasUnsavedChanges ||
+    window.confirm("Discard your unsaved changes? Save this form first if you want to keep them.");
+  const selectForm = (id: string) => {
+    if (id === selectedFormId) return;
+    if (isMutating || !canReplaceDraft()) return;
+    setIsCreating(false);
+    setSelectedFormId(id);
+  };
+  const openForm = (id: string, section: SectionId = "forms") => {
+    if (id !== selectedFormId && (isMutating || !canReplaceDraft())) return;
+    setIsCreating(false);
+    setSelectedFormId(id);
+    setActiveSection(section);
+  };
 
   const saveDraft = async () => {
+    if (!hasValidDraft(draft)) {
+      toast.error("Check your form title, questions, options, and rating limits.");
+      throw new Error("Invalid draft");
+    }
     const payload = toPayload(draft);
     if (draft.id) {
-      setLastSavedSnapshot(JSON.stringify(payload));
       await updateForm.mutateAsync({ ...payload, id: draft.id });
       return draft.id;
     }
@@ -507,25 +896,39 @@ export default function DashboardPage() {
       setDraft((current) => ({ ...current, status: "DRAFT" }));
       return;
     }
-    await publishForm.mutateAsync({ formId: draft.id });
+    const formId = await saveDraft();
+    await publishForm.mutateAsync({ formId });
     setDraft((current) => ({ ...current, status: "PUBLISHED" }));
   };
 
   const createNew = () => {
+    if (isMutating || !canReplaceDraft()) return;
+    setIsCreating(true);
     setSelectedFormId(null);
-    setDraft(newDraftForm());
+    const next = newDraftForm();
+    setDraft(next);
+    setTheme(resolveTheme(next.themeSlug ?? "glass").name);
     setSelectedFieldIndex(0);
-    setLastSavedSnapshot("");
+    setLastSavedSnapshot(JSON.stringify(toPayload(next)));
     setActiveSection("forms");
   };
 
   const copyPublicUrl = async () => {
-    if (!draft.id) {
-      toast.error("Save the form before copying a share link");
+    if (
+      !draft.id ||
+      draft.status !== "PUBLISHED" ||
+      draft.visibility === "PRIVATE" ||
+      hasUnsavedChanges
+    ) {
+      toast.error("Save and publish the form before sharing its link");
       return;
     }
-    await navigator.clipboard.writeText(publicUrl);
-    toast.success("Public link copied");
+    try {
+      await navigator.clipboard.writeText(publicUrl);
+      toast.success("Public link copied");
+    } catch {
+      toast.error("Could not copy. Copy the link from the share field instead.");
+    }
   };
 
   const addField = (type: FieldType) => {
@@ -538,6 +941,7 @@ export default function DashboardPage() {
   };
 
   const useTemplate = (template: TemplateCard) => {
+    if (isMutating || !canReplaceDraft()) return;
     const nextDraft: DraftForm = {
       title: template.title,
       description: template.description,
@@ -561,9 +965,10 @@ export default function DashboardPage() {
       })),
     };
     setDraft(nextDraft);
+    setIsCreating(true);
     setSelectedFormId(null);
     setSelectedFieldIndex(0);
-    setLastSavedSnapshot("");
+    setLastSavedSnapshot(JSON.stringify(toPayload(nextDraft)));
     setTheme(template.theme);
     setActiveSection("forms");
     toast.success(`${template.title} loaded into the builder`);
@@ -577,313 +982,379 @@ export default function DashboardPage() {
   };
 
   return (
-    <main className="min-h-screen overflow-hidden bg-[#05070d] text-white">
-      <div className="pointer-events-none fixed inset-0 bg-[linear-gradient(135deg,rgba(20,184,166,0.13),transparent_34%),linear-gradient(225deg,rgba(244,63,94,0.11),transparent_32%),linear-gradient(180deg,#05070d,#0b1020_52%,#05070d)]" />
-      <div className="PollIq-grid pointer-events-none fixed inset-0 opacity-[0.12]" />
+    <main className="workspace-app dark">
+      <a href="#workspace-content" className="skip-link">
+        Skip to workspace
+      </a>
+      <div className="workspace-layout">
+        <Sidebar
+          activeSection={activeSection}
+          onSelect={setActiveSection}
+          open={sidebarOpen}
+          onToggle={() => setSidebarOpen((current) => !current)}
+        />
 
-      <div className="relative mx-auto flex min-h-screen w-full max-w-[1580px] gap-4 p-3 sm:p-4">
-        <Sidebar activeSection={activeSection} onSelect={setActiveSection} open={sidebarOpen} onToggle={() => setSidebarOpen((current) => !current)} />
-
-        <section className="min-w-0 flex-1 overflow-hidden rounded-lg border border-white/10 bg-white/[0.04] shadow-[0_30px_120px_rgba(0,0,0,0.38)] backdrop-blur-xl">
-          <Topbar displayName={displayName} hasUnsavedChanges={hasUnsavedChanges} />
-          <div className="space-y-6 px-4 py-5 sm:px-6">
+        <section className="workspace-main">
+          <Topbar
+            displayName={displayName}
+            section={activeSection}
+            hasUnsavedChanges={activeSection === "forms" && hasUnsavedChanges}
+            isDraft={!draft.id}
+            onMenu={() => setMobileMenuOpen(!mobileMenuOpen)}
+            menuOpen={mobileMenuOpen}
+            onSignOut={() => {
+              if (canReplaceDraft()) signOut.mutate();
+            }}
+            signingOut={signOut.isPending}
+          />
+          {mobileMenuOpen && (
+            <nav
+              id="workspace-mobile-menu"
+              className="workspace-mobile-menu"
+              aria-label="Workspace navigation"
+            >
+              {navigation.map((item) => (
+                <button
+                  key={item.id}
+                  aria-current={activeSection === item.id ? "page" : undefined}
+                  onClick={() => {
+                    setActiveSection(item.id);
+                    setMobileMenuOpen(false);
+                  }}
+                >
+                  <item.icon size={17} />
+                  {item.label}
+                </button>
+              ))}
+            </nav>
+          )}
+          <div id="workspace-content" className="workspace-content">
+            {formsQuery.isError && (
+              <div
+                role="alert"
+                className="rounded-lg border border-rose-300/30 bg-rose-300/10 p-4 text-sm"
+              >
+                Could not load your forms.{" "}
+                <button className="underline" onClick={() => void formsQuery.refetch()}>
+                  Try again
+                </button>
+              </div>
+            )}
+            {selectedFormQuery.isError && selectedFormId && (
+              <p role="alert" className="text-rose-200">
+                Could not load this form.{" "}
+                <button className="underline" onClick={() => void selectedFormQuery.refetch()}>
+                  Try again
+                </button>
+              </p>
+            )}
+            {responsesQuery.isError && (
+              <p role="alert" className="text-rose-200">
+                Responses could not be loaded.{" "}
+                <button className="underline" onClick={() => void responsesQuery.refetch()}>
+                  Retry
+                </button>
+              </p>
+            )}
             {activeSection === "dashboard" ? (
-              <DashboardHome forms={forms} totals={totals} onCreate={createNew} onExplore={() => setActiveSection("themes")} onOpenForms={() => setActiveSection("forms")} />
-            ) : null}
-            {activeSection === "forms" ? (
-              <FormsWorkspace
-                addField={addField}
-                copyPublicUrl={copyPublicUrl}
-                device={device}
-                draft={draft}
+              <WorkspaceHome
                 forms={forms}
-                hasValidDraft={hasValidDraft(draft)}
-                isLoadingForms={formsQuery.isLoading}
-                isMutating={isMutating}
+                name={displayName}
+                loading={formsQuery.isLoading}
+                failed={formsQuery.isError}
                 onCreate={createNew}
-                onDeviceChange={setDevice}
-                onPublish={togglePublish}
-                onSave={saveDraft}
-                onSelectForm={setSelectedFormId}
-                onThemeChange={setTheme}
-                publicUrl={publicUrl}
-                responseData={responseData}
-                selectedField={selectedField}
-                selectedFieldIndex={selectedFieldIndex}
-                selectedFormId={selectedFormId}
-                setDraft={setDraft}
-                setSelectedFieldIndex={setSelectedFieldIndex}
-                theme={theme}
+                onTemplates={() => setActiveSection("explore")}
+                onOpen={(id) => openForm(id)}
+                onResponses={(id) => openForm(id, "responses")}
               />
             ) : null}
+            {(activeSection === "responses" || activeSection === "analytics") && (
+              <div className="workspace-data-selector">
+                <div>
+                  <label htmlFor="insight-form">Selected form</label>
+                  <p>View saved answers and activity for one form.</p>
+                </div>
+                <select
+                  id="insight-form"
+                  value={selectedFormId ?? ""}
+                  onChange={(event) => selectForm(event.target.value)}
+                  disabled={formsQuery.isLoading || !forms.length}
+                >
+                  <option value="" disabled>
+                    Choose a form
+                  </option>
+                  {forms.map((form) => (
+                    <option key={form.id} value={form.id}>
+                      {form.title}
+                    </option>
+                  ))}
+                </select>
+                <Button
+                  variant="outline"
+                  disabled={!selectedFormId || responsesQuery.isFetching}
+                  onClick={() => void responsesQuery.refetch()}
+                >
+                  {responsesQuery.isFetching ? "Refreshing…" : "Refresh"}
+                </Button>
+              </div>
+            )}
+            {activeSection === "forms" ? (
+              <fieldset
+                disabled={
+                  isMutating ||
+                  Boolean(
+                    selectedFormId && (selectedFormQuery.isLoading || selectedFormQuery.isError),
+                  )
+                }
+                className="min-w-0"
+              >
+                {selectedFormId && selectedFormQuery.isLoading && (
+                  <p role="status" className="mb-4 text-sm text-slate-400">
+                    Loading form…
+                  </p>
+                )}
+                <FormsWorkspace
+                  addField={addField}
+                  copyPublicUrl={copyPublicUrl}
+                  device={device}
+                  draft={draft}
+                  forms={forms}
+                  hasValidDraft={hasValidDraft(draft)}
+                  isLoadingForms={formsQuery.isLoading}
+                  isMutating={isMutating}
+                  onCreate={createNew}
+                  onDeviceChange={setDevice}
+                  onPublish={togglePublish}
+                  onSave={saveDraft}
+                  onSelectForm={selectForm}
+                  isLoadingResponses={responsesQuery.isLoading}
+                  hasUnsavedChanges={hasUnsavedChanges}
+                  onThemeChange={(name) => {
+                    setTheme(name);
+                    setDraft((current) => ({ ...current, themeSlug: resolveTheme(name).key }));
+                  }}
+                  publicUrl={publicUrl}
+                  responseData={responseData}
+                  selectedField={selectedField}
+                  selectedFieldIndex={selectedFieldIndex}
+                  selectedFormId={selectedFormId}
+                  setDraft={setDraft}
+                  setSelectedFieldIndex={setSelectedFieldIndex}
+                  theme={theme}
+                />
+              </fieldset>
+            ) : null}
             {activeSection === "explore" ? <ExploreSection onUseTemplate={useTemplate} /> : null}
-            {activeSection === "themes" ? <ThemesSection onApplyTheme={applyTheme} selectedTheme={theme} /> : null}
-            {activeSection === "analytics" ? <AnalyticsSection fields={draft.fields} responseData={responseData} totals={totals} /> : null}
-            {activeSection === "responses" ? <ResponsesSection data={responseData} fields={draft.fields} isLoading={responsesQuery.isLoading} /> : null}
+            {activeSection === "themes" ? (
+              <ThemesSection onApplyTheme={applyTheme} selectedTheme={theme} />
+            ) : null}
+            {activeSection === "analytics" ? (
+              <AnalyticsSection
+                fields={
+                  selectedFormQuery.data?.id === selectedFormId
+                    ? selectedFormQuery.data.fields.map((field) => ({
+                        ...field,
+                        description: field.description ?? undefined,
+                        placeholder: field.placeholder ?? undefined,
+                        config: normalizeConfig(field.config, field.type),
+                      }))
+                    : []
+                }
+                responseData={responseData}
+                totals={totals}
+              />
+            ) : null}
+            {activeSection === "responses" ? (
+              <ResponsesSection
+                data={responseData}
+                fields={
+                  selectedFormQuery.data?.id === selectedFormId
+                    ? selectedFormQuery.data.fields.map((field) => ({
+                        ...field,
+                        description: field.description ?? undefined,
+                        placeholder: field.placeholder ?? undefined,
+                        config: normalizeConfig(field.config, field.type),
+                      }))
+                    : []
+                }
+                isLoading={responsesQuery.isLoading || selectedFormQuery.isLoading}
+              />
+            ) : null}
             {activeSection === "api" ? <ApiDocsSection /> : null}
-            {activeSection === "settings" ? <SettingsSection /> : null}
           </div>
         </section>
       </div>
-
-      <MobileNav activeSection={activeSection} onSelect={setActiveSection} onCreate={createNew} />
     </main>
   );
 }
 
-function Topbar({ displayName, hasUnsavedChanges }: { displayName: string; hasUnsavedChanges: boolean }) {
+function Topbar({
+  displayName,
+  section,
+  hasUnsavedChanges,
+  isDraft,
+  onMenu,
+  menuOpen,
+  onSignOut,
+  signingOut,
+}: {
+  displayName: string;
+  section: SectionId;
+  hasUnsavedChanges: boolean;
+  isDraft: boolean;
+  onMenu: () => void;
+  menuOpen: boolean;
+  onSignOut: () => void;
+  signingOut: boolean;
+}) {
   return (
-    <header className="flex flex-col gap-4 border-b border-white/10 px-4 py-4 sm:px-6 xl:flex-row xl:items-center xl:justify-between">
-      <div className="min-w-0">
-        <p className="text-sm font-semibold text-teal-200">Good evening, {displayName}</p>
-        <div className="mt-1 flex flex-wrap items-center gap-2">
-          <h1 className="text-2xl font-black tracking-tight sm:text-4xl">Dashboard</h1>
-          {hasUnsavedChanges ? <Badge className="border-amber-300/20 bg-amber-300/10 text-amber-100">Unsaved</Badge> : <Badge className="border-teal-300/20 bg-teal-300/10 text-teal-100">Saved</Badge>}
-        </div>
-      </div>
-      <div className="flex flex-wrap items-center gap-2">
-        <button className="hidden h-10 items-center gap-2 rounded-lg border border-white/10 bg-black/25 px-3 text-sm font-bold text-slate-300 transition hover:border-teal-300/40 hover:text-white md:flex" type="button">
-          <Search className="size-4" />
-          Search
-          <span className="rounded-md border border-white/10 bg-white/10 px-1.5 py-0.5 text-[10px] text-slate-400">K</span>
+    <header className="workspace-topbar">
+      <div className="workspace-breadcrumb">
+        <button
+          className="workspace-menu-trigger"
+          aria-label={menuOpen ? "Close workspace menu" : "Open workspace menu"}
+          aria-expanded={menuOpen}
+          aria-controls="workspace-mobile-menu"
+          onClick={onMenu}
+        >
+          {menuOpen ? <X size={20} /> : <Menu size={20} />}
         </button>
-        <Button className="border-white/12 bg-white/[0.06] text-white hover:bg-white/10" size="icon" variant="outline">
-          <Bell className="size-4" />
-        </Button>
-        <div className="grid size-10 place-items-center rounded-lg border border-white/10 bg-white/[0.08] text-sm font-black text-teal-100 shadow-[0_0_28px_rgba(20,184,166,0.16)]">
-          S
-        </div>
+        <span>Workspace</span>
+        <ChevronRight size={13} />
+        <strong>{navigation.find((item) => item.id === section)?.label ?? "Overview"}</strong>
+        {section === "forms" && (
+          <span
+            className={`workspace-save-state ${hasUnsavedChanges ? "is-dirty" : ""}`}
+            role="status"
+          >
+            {hasUnsavedChanges ? "Unsaved changes" : isDraft ? "New draft" : "Saved"}
+          </span>
+        )}
+      </div>
+      <div className="workspace-account">
+        <span className="workspace-avatar" aria-hidden="true">
+          {displayName.slice(0, 1).toUpperCase()}
+        </span>
+        <span>{displayName}</span>
+        <button aria-label="Sign out" title="Sign out" disabled={signingOut} onClick={onSignOut}>
+          <LogOut size={16} />
+        </button>
       </div>
     </header>
   );
 }
 
-function Sidebar({ activeSection, onSelect, open, onToggle }: { activeSection: SectionId; onSelect: (section: SectionId) => void; open: boolean; onToggle: () => void }) {
+function Sidebar({
+  activeSection,
+  onSelect,
+  open,
+  onToggle,
+}: {
+  activeSection: SectionId;
+  onSelect: (section: SectionId) => void;
+  open: boolean;
+  onToggle: () => void;
+}) {
   return (
-    <aside className={`hidden shrink-0 rounded-lg border border-white/10 bg-black/30 p-3 shadow-[0_24px_90px_rgba(0,0,0,0.42),0_0_60px_rgba(20,184,166,0.08)] backdrop-blur-2xl transition-all duration-300 lg:block ${open ? "w-64" : "w-[78px]"}`}>
-      <div className="flex items-center justify-between gap-2">
-        <Link className="flex min-w-0 items-center gap-3" href="/">
-          <LogoMark />
-          {open ? <span className="truncate text-xl font-black">PollIq</span> : null}
+    <aside className={`workspace-sidebar ${open ? "" : "is-collapsed"}`}>
+      <div className="workspace-brand-row">
+        <Link href="/" className="workspace-brand" aria-label="PollIQ home">
+          <span>
+            <BarChart3 size={21} />
+          </span>
+          {open && "polliq"}
         </Link>
-        <button aria-label={open ? "Collapse sidebar" : "Expand sidebar"} className="grid size-9 place-items-center rounded-lg border border-white/10 bg-white/[0.05] text-slate-300 transition hover:border-teal-300/40 hover:text-white" onClick={onToggle} type="button">
-          {open ? <PanelLeftClose className="size-4" /> : <PanelLeftOpen className="size-4" />}
+        <button aria-label={open ? "Collapse sidebar" : "Expand sidebar"} onClick={onToggle}>
+          {open ? <PanelLeftClose size={16} /> : <PanelLeftOpen size={16} />}
         </button>
       </div>
-
-      {open ? <p className="mt-7 px-3 text-xs font-black uppercase tracking-[0.24em] text-slate-500">Navigation</p> : null}
-      <nav className="mt-3 space-y-1.5">
-        {navigation.map((item) => {
-          const active = activeSection === item.id;
-          return (
-            <button
-              className={`group relative flex h-11 w-full items-center gap-3 overflow-hidden rounded-lg px-3 text-sm font-bold transition ${
-                active ? "bg-gradient-to-r from-white via-teal-100 to-white text-[#05070d] shadow-[0_0_34px_rgba(20,184,166,0.22)]" : "text-slate-400 hover:bg-white/[0.07] hover:text-white"
-              }`}
-              key={item.id}
-              onClick={() => onSelect(item.id)}
-              title={item.label}
-              type="button"
-            >
-              <span className={`absolute left-0 top-1/2 h-7 w-1 -translate-y-1/2 rounded-r-full transition ${active ? "bg-teal-400 opacity-100" : "bg-teal-300 opacity-0 group-hover:opacity-60"}`} />
-              <item.icon className={`size-4 shrink-0 ${active ? "text-[#05070d]" : "group-hover:text-teal-200"}`} />
-              {open ? <span className="truncate">{item.label}</span> : null}
-            </button>
-          );
-        })}
+      <div className="workspace-space">
+        <span>P</span>
+        {open && (
+          <div>
+            <strong>Personal workspace</strong>
+            <small>Your space to create</small>
+          </div>
+        )}
+      </div>
+      {open && <p className="workspace-nav-label">WORKSPACE</p>}
+      <nav aria-label="Workspace navigation">
+        {navigation.map((item) => (
+          <button
+            key={item.id}
+            aria-label={item.label}
+            aria-current={activeSection === item.id ? "page" : undefined}
+            onClick={() => onSelect(item.id)}
+            title={item.label}
+          >
+            <item.icon size={18} />
+            {open && <span>{item.label}</span>}
+            {activeSection === item.id && open && <span className="workspace-nav-dot" />}
+          </button>
+        ))}
       </nav>
+      <div className="workspace-sidebar-bottom">
+        {open && (
+          <div className="workspace-tip">
+            <Sparkles size={18} />
+            <strong>Make it your own.</strong>
+            <p>A great question deserves a little personality.</p>
+            <button onClick={() => onSelect("themes")}>
+              Discover themes <ChevronRight size={14} />
+            </button>
+          </div>
+        )}
+        <Link href="/" title="Back to website">
+          <Globe2 size={16} />
+          {open && "Back to website"}
+        </Link>
+      </div>
     </aside>
   );
 }
 
-function DashboardHome({ forms, totals, onCreate, onExplore, onOpenForms }: { forms: FormSummary[]; totals: ReturnType<typeof getTotals>; onCreate: () => void; onExplore: () => void; onOpenForms: () => void }) {
+function PremiumEmptyState({
+  actionLabel,
+  compact = false,
+  message,
+  onAction,
+  title,
+}: {
+  actionLabel: string;
+  compact?: boolean;
+  message: string;
+  onAction: () => void;
+  title: string;
+}) {
   return (
-    <>
-      <HeroPanel onCreate={onCreate} onExplore={onExplore} />
-      <Stats totals={totals} />
-      <section className="grid gap-6 xl:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.65fr)]">
-        <RecentForms forms={forms} onOpenForms={onOpenForms} />
-        <LiveActivity />
-      </section>
-    </>
-  );
-}
-
-function HeroPanel({ onCreate, onExplore }: { onCreate: () => void; onExplore: () => void }) {
-  return (
-    <section className="group relative overflow-hidden rounded-lg border border-white/10 bg-white/[0.055] p-5 shadow-[0_30px_120px_rgba(0,0,0,0.34)] sm:p-6 xl:grid xl:min-h-[340px] xl:grid-cols-[1fr_420px] xl:gap-8">
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_18%,rgba(20,184,166,0.24),transparent_26%),radial-gradient(circle_at_78%_20%,rgba(244,63,94,0.18),transparent_28%),linear-gradient(135deg,rgba(255,255,255,0.08),transparent_38%)]" />
-      <div className="absolute inset-0 opacity-40 [background-image:radial-gradient(circle,rgba(255,255,255,0.18)_1px,transparent_1px)] [background-size:24px_24px]" />
-      <div className="relative flex min-h-[280px] flex-col justify-center">
-        <Badge className="w-fit border-teal-300/20 bg-teal-300/10 text-teal-100">Immersive form OS</Badge>
-        <h2 className="mt-5 max-w-2xl text-4xl font-black leading-[1.05] tracking-tight sm:text-6xl">Build forms people actually enjoy filling.</h2>
-        <p className="mt-4 max-w-xl text-base leading-7 text-slate-300">Create immersive experiences with futuristic themes, live previews, analytics, and a sharing flow that feels ready for real users.</p>
-        <div className="mt-7 flex flex-wrap gap-3">
-          <Button className="bg-white text-[#05070d] hover:bg-teal-100" onClick={onCreate}>
-            <Sparkles className="size-4" />
-            Create Experience
-          </Button>
-          <Button className="border-white/12 bg-white/[0.08] text-white hover:bg-white/12" onClick={onExplore} variant="outline">
-            <Palette className="size-4" />
-            Explore Themes
-          </Button>
-        </div>
-      </div>
-      <div className="relative mt-6 xl:mt-0">
-        <LiveFormPreview />
-      </div>
-    </section>
-  );
-}
-
-function LiveFormPreview() {
-  return (
-    <div className="relative mx-auto flex h-full min-h-[300px] max-w-[420px] items-center">
-      <div className="absolute inset-8 rounded-full bg-teal-300/20 blur-3xl" />
-      <div className="relative w-full rounded-lg border border-white/15 bg-black/45 p-5 shadow-[0_24px_90px_rgba(0,0,0,0.45)] backdrop-blur-xl transition duration-500 group-hover:-translate-y-1">
-        <div className="flex items-center justify-between gap-3">
-          <Badge className="border-fuchsia-300/20 bg-fuchsia-300/10 text-fuchsia-100">Question 1 of 4</Badge>
-          <span className="text-xs font-bold text-slate-500">Live</span>
-        </div>
-        <h3 className="mt-8 text-3xl font-black leading-tight">What kind of experience should your form feel like?</h3>
-        <div className="mt-6 grid gap-3">
-          {["Anime launch portal", "Cyberpunk application", "Startup feedback sprint"].map((option, index) => (
-            <button className={`rounded-lg border px-4 py-3 text-left text-sm font-bold transition ${index === 1 ? "border-teal-300 bg-teal-300/15 text-white" : "border-white/10 bg-white/[0.04] text-slate-300 hover:border-teal-300/35"}`} key={option} type="button">
-              {option}
-            </button>
-          ))}
-        </div>
-        <div className="mt-7 flex items-center justify-between text-xs font-semibold text-slate-500">
-          <span>Press Enter</span>
-          <span className="h-1.5 w-28 overflow-hidden rounded-full bg-white/10"><span className="block h-full w-2/3 rounded-full bg-teal-300" /></span>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function Stats({ totals }: { totals: ReturnType<typeof getTotals> }) {
-  const items = [
-    { label: "Total Forms", value: totals.forms, icon: ClipboardList, spark: [30, 44, 36, 70, 54, 82, 74] },
-    { label: "Responses", value: totals.responses, icon: MessageSquareText, spark: [22, 48, 40, 60, 76, 62, 88] },
-    { label: "Completion Rate", value: `${totals.completion}%`, icon: Gauge, spark: [42, 50, 48, 64, 58, 72, 68] },
-    { label: "Active Views", value: `${totals.views} live`, icon: Eye, spark: [18, 32, 46, 40, 58, 68, 84] },
-  ];
-
-  return (
-    <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-      {items.map((item) => (
-        <div className="group rounded-lg border border-white/10 bg-white/[0.055] p-4 shadow-[0_18px_60px_rgba(0,0,0,0.20)] transition hover:-translate-y-1 hover:border-teal-300/35 hover:shadow-[0_0_70px_rgba(20,184,166,0.12)]" key={item.label}>
-          <div className="flex items-center justify-between gap-3">
-            <div className="grid size-10 place-items-center rounded-lg border border-white/10 bg-black/25">
-              <item.icon className="size-5 text-teal-200" />
-            </div>
-            <SparkLine values={item.spark} />
-          </div>
-          <p className="mt-4 text-sm font-semibold text-slate-400">{item.label}</p>
-          <p className="mt-1 text-3xl font-black">{typeof item.value === "number" ? formatCompactNumber(item.value) : item.value}</p>
-        </div>
-      ))}
-    </section>
-  );
-}
-
-function RecentForms({ forms, onOpenForms }: { forms: FormSummary[]; onOpenForms: () => void }) {
-  const cards = forms.slice(0, 3);
-  return (
-    <section className="rounded-lg border border-white/10 bg-white/[0.055] p-5">
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <h2 className="text-xl font-black">Recent Forms</h2>
-          <p className="mt-1 text-sm text-slate-400">Cards with live status, not a spreadsheet.</p>
-        </div>
-        <Button className="border-white/12 bg-white/[0.06] text-white hover:bg-white/10" onClick={onOpenForms} size="sm" variant="outline">
-          Open builder
-        </Button>
-      </div>
-      {!cards.length ? (
-        <PremiumEmptyState
-          actionLabel="Create first form"
-          message="Create your first form in under 2 minutes. Start with a polished template or build your own adaptive flow."
-          onAction={onOpenForms}
-          title="Your first form is waiting"
-        />
-      ) : null}
-      <div className="mt-5 grid gap-4 md:grid-cols-3">
-        {cards.map((form, index) => (
-          <article className="group relative overflow-hidden rounded-lg border border-white/10 bg-black/24 p-3 transition duration-300 hover:-translate-y-1 hover:border-teal-300/35 hover:shadow-[0_0_70px_rgba(20,184,166,0.14)]" key={form.id}>
-            <div className={`relative h-32 overflow-hidden rounded-lg bg-gradient-to-br ${["from-pink-400 via-rose-300 to-fuchsia-500", "from-cyan-300 via-violet-500 to-fuchsia-500", "from-teal-300 via-sky-400 to-indigo-500"][index % 3]}`}>
-              <div className="absolute left-4 right-4 top-4 rounded-lg border border-white/30 bg-black/20 p-3 backdrop-blur-md">
-                <div className="h-2 w-20 rounded-full bg-white/70" />
-                <div className="mt-4 h-7 rounded-md border border-white/30 bg-white/15" />
-                <div className="mt-3 grid grid-cols-3 gap-2">
-                  <div className="h-5 rounded bg-white/20" />
-                  <div className="h-5 rounded bg-white/35" />
-                  <div className="h-5 rounded bg-white/20" />
-                </div>
-              </div>
-            </div>
-            <div className="mt-4">
-              <StatusBadge status={form.status} />
-              <h3 className="mt-3 min-h-12 text-lg font-black leading-6">{form.title}</h3>
-              <div className="mt-3 flex flex-wrap gap-2 text-xs font-semibold text-slate-400">
-                <span>{form.views ?? 0} views</span>
-                <span>{form.responseCount ?? 0} responses</span>
-              </div>
-              <Progress className="mt-4 h-2 bg-white/10" value={Math.min(92, 42 + index * 16)} />
-              <div className="mt-4 grid grid-cols-4 gap-2">
-                {["Edit", "Preview", "Analytics", "Share"].map((action) => (
-                  <button className="rounded-md border border-white/10 bg-white/[0.04] px-2 py-1.5 text-[11px] font-bold text-slate-300 transition hover:border-teal-300/35 hover:text-white" key={action} type="button">
-                    {action}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </article>
-        ))}
-      </div>
-    </section>
-  );
-}
-
-function LiveActivity() {
-  return (
-    <section className="rounded-lg border border-white/10 bg-white/[0.055] p-5">
-      <h2 className="text-xl font-black">Live Activity</h2>
-      <div className="mt-5 space-y-3">
-        {quickActivity.map(([activity, time, Icon]) => (
-          <div className="flex items-start gap-3 rounded-lg border border-white/10 bg-black/24 p-3" key={activity}>
-            <div className="grid size-9 shrink-0 place-items-center rounded-lg bg-teal-300/10 text-teal-100">
-              <Icon className="size-4" />
-            </div>
-            <div className="min-w-0">
-              <p className="text-sm font-semibold leading-6 text-slate-100">{activity}</p>
-              <p className="text-xs text-slate-500">{time}</p>
-            </div>
-          </div>
-        ))}
-      </div>
-    </section>
-  );
-}
-
-function PremiumEmptyState({ actionLabel, compact = false, message, onAction, title }: { actionLabel: string; compact?: boolean; message: string; onAction: () => void; title: string }) {
-  return (
-    <div className={`mt-5 overflow-hidden rounded-lg border border-dashed border-teal-300/25 bg-black/24 ${compact ? "p-4" : "p-7 text-center"}`}>
-      <div className={`${compact ? "mx-0" : "mx-auto"} relative grid size-16 place-items-center rounded-lg border border-white/10 bg-white/[0.06]`}>
+    <div
+      className={`mt-5 overflow-hidden rounded-lg border border-dashed border-teal-300/25 bg-black/24 ${compact ? "p-4" : "p-7 text-center"}`}
+    >
+      <div
+        className={`${compact ? "mx-0" : "mx-auto"} relative grid size-16 place-items-center rounded-lg border border-white/10 bg-white/[0.06]`}
+      >
         <div className="absolute inset-2 rounded-md bg-gradient-to-br from-teal-300/35 via-sky-300/20 to-fuchsia-300/30 blur-sm" />
         <FilePlus2 className="relative size-7 text-teal-100" />
       </div>
       <h3 className="mt-4 text-xl font-black">{title}</h3>
-      <p className={`${compact ? "" : "mx-auto max-w-md"} mt-2 text-sm leading-6 text-slate-400`}>{message}</p>
+      <p className={`${compact ? "" : "mx-auto max-w-md"} mt-2 text-sm leading-6 text-slate-400`}>
+        {message}
+      </p>
       <div className={`${compact ? "" : "justify-center"} mt-4 flex flex-wrap gap-2`}>
         {["Job application", "Feedback", "Waitlist"].map((template) => (
-          <span className="rounded-md border border-white/10 bg-white/[0.06] px-2.5 py-1 text-xs font-bold text-slate-300" key={template}>
+          <span
+            className="rounded-md border border-white/10 bg-white/[0.06] px-2.5 py-1 text-xs font-bold text-slate-300"
+            key={template}
+          >
             {template}
           </span>
         ))}
       </div>
-      <Button className="mt-5 bg-white text-[#05070d] hover:bg-teal-100" onClick={onAction} size="sm">
+      <Button
+        className="mt-5 bg-white text-[#05070d] hover:bg-teal-100"
+        onClick={onAction}
+        size="sm"
+      >
         <Sparkles className="size-4" />
         {actionLabel}
       </Button>
@@ -899,10 +1370,12 @@ function FormsWorkspace(props: {
   forms: FormSummary[];
   hasValidDraft: boolean;
   isLoadingForms: boolean;
+  isLoadingResponses: boolean;
+  hasUnsavedChanges: boolean;
   isMutating: boolean;
   onCreate: () => void;
   onDeviceChange: (device: "Desktop" | "Tablet" | "Mobile") => void;
-  onPublish: () => void;
+  onPublish: () => Promise<void>;
   onSave: () => Promise<string>;
   onSelectForm: (id: string) => void;
   onThemeChange: (theme: string) => void;
@@ -916,35 +1389,68 @@ function FormsWorkspace(props: {
   theme: string;
 }) {
   return (
-    <div className="space-y-5">
-      <section className="flex flex-col gap-3 rounded-lg border border-white/10 bg-white/[0.055] p-4 sm:flex-row sm:items-center sm:justify-between">
+    <div className="workspace-builder space-y-5">
+      <section className="builder-action-bar flex flex-col gap-3 rounded-lg border border-white/10 bg-white/[0.055] p-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="text-xl font-black">Form Builder</h2>
-          <p className="mt-1 text-sm text-slate-400">Fields, live preview, and properties divided by purpose.</p>
+          <p className="mt-1 text-sm text-slate-400">
+            Shape your questions, choose a look, and share when you’re ready.
+          </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button className="bg-white text-[#05070d] hover:bg-teal-100" disabled={props.isMutating} onClick={props.onCreate}>
+          <Button
+            className="bg-white text-[#05070d] hover:bg-teal-100"
+            disabled={props.isMutating}
+            onClick={props.onCreate}
+          >
             <FilePlus2 className="size-4" />
             New
           </Button>
-          <Button className="border-white/12 bg-white/[0.06] text-white hover:bg-white/10" disabled={props.isMutating || !props.hasValidDraft} onClick={props.onSave} variant="outline">
+          <Button
+            className="border-white/12 bg-white/[0.06] text-white hover:bg-white/10"
+            disabled={props.isMutating || !props.hasValidDraft}
+            onClick={() => {
+              void props.onSave().catch(() => {});
+            }}
+            variant="outline"
+          >
             <Save className="size-4" />
-            Save
+            {props.isMutating ? "Saving…" : "Save changes"}
           </Button>
-          <Button className="bg-teal-300 text-[#04201d] hover:bg-teal-200" disabled={props.isMutating || !props.hasValidDraft} onClick={props.onPublish}>
-            {props.draft.status === "PUBLISHED" ? <Unlock className="size-4" /> : <Rocket className="size-4" />}
+          <Button
+            className="bg-teal-300 text-[#04201d] hover:bg-teal-200"
+            disabled={props.isMutating || !props.hasValidDraft}
+            onClick={() => {
+              void props.onPublish().catch(() => {});
+            }}
+          >
+            {props.draft.status === "PUBLISHED" ? (
+              <Unlock className="size-4" />
+            ) : (
+              <Rocket className="size-4" />
+            )}
             {props.draft.status === "PUBLISHED" ? "Unpublish" : "Publish"}
           </Button>
         </div>
       </section>
 
       <div className="grid gap-5 xl:grid-cols-[320px_minmax(0,1fr)]">
-        <FormList forms={props.forms} isLoading={props.isLoadingForms} selectedId={props.selectedFormId} onSelect={props.onSelectForm} />
+        <FormList
+          forms={props.forms}
+          isLoading={props.isLoadingForms}
+          selectedId={props.selectedFormId}
+          onSelect={props.onSelectForm}
+        />
         <FormDetails draft={props.draft} publicUrl={props.publicUrl} setDraft={props.setDraft} />
       </div>
 
-      <section className="grid gap-5 xl:grid-cols-[260px_minmax(0,1fr)_320px]">
-        <FieldLibrary addField={props.addField} fields={props.draft.fields} selectedFieldIndex={props.selectedFieldIndex} setSelectedFieldIndex={props.setSelectedFieldIndex} />
+      <section className="grid gap-5 2xl:grid-cols-[220px_minmax(0,1fr)_280px] xl:grid-cols-2">
+        <FieldLibrary
+          addField={props.addField}
+          fields={props.draft.fields}
+          selectedFieldIndex={props.selectedFieldIndex}
+          setSelectedFieldIndex={props.setSelectedFieldIndex}
+        />
         <BuilderPreview
           device={props.device}
           draft={props.draft}
@@ -962,28 +1468,60 @@ function FormsWorkspace(props: {
             allFields={props.draft.fields}
             field={props.selectedField}
             onChange={(field) => updateFieldAt(props.selectedFieldIndex, field, props.setDraft)}
-            onDelete={() => removeFieldAt(props.selectedFieldIndex, props.setDraft, props.setSelectedFieldIndex)}
+            onDelete={() =>
+              removeFieldAt(props.selectedFieldIndex, props.setDraft, props.setSelectedFieldIndex)
+            }
+            hasResponses={Boolean(
+              props.selectedField.id &&
+              props.responseData?.answers.some(
+                (answer) => answer.fieldId === props.selectedField?.id,
+              ),
+            )}
             selectedIndex={props.selectedFieldIndex}
           />
         ) : null}
       </section>
 
       <section className="grid gap-5 xl:grid-cols-[minmax(300px,0.72fr)_minmax(420px,1.28fr)]">
-        <PublishPanel draft={props.draft} publicUrl={props.publicUrl} onCopy={props.copyPublicUrl} />
-        <ResponsesPanel data={props.responseData} fields={props.draft.fields} isLoading={false} />
+        <PublishPanel
+          draft={props.draft}
+          publicUrl={props.publicUrl}
+          onCopy={props.copyPublicUrl}
+          hasUnsavedChanges={props.hasUnsavedChanges}
+        />
+        <ResponsesPanel
+          data={props.responseData}
+          fields={props.draft.fields}
+          isLoading={props.isLoadingResponses}
+        />
       </section>
     </div>
   );
 }
 
-function FieldLibrary({ addField, fields, selectedFieldIndex, setSelectedFieldIndex }: { addField: (type: FieldType) => void; fields: DraftField[]; selectedFieldIndex: number; setSelectedFieldIndex: (index: number) => void }) {
+function FieldLibrary({
+  addField,
+  fields,
+  selectedFieldIndex,
+  setSelectedFieldIndex,
+}: {
+  addField: (type: FieldType) => void;
+  fields: DraftField[];
+  selectedFieldIndex: number;
+  setSelectedFieldIndex: (index: number) => void;
+}) {
   return (
     <section className="rounded-lg border border-white/10 bg-white/[0.055] p-4">
       <h3 className="text-lg font-black">Fields</h3>
       <p className="mt-1 text-sm text-slate-400">Add blocks, then pick one to edit.</p>
-      <div className="mt-4 grid gap-2">
+      <div className="mt-4 grid grid-cols-2 gap-2 2xl:grid-cols-1">
         {fieldTypes.map(([type, label, Icon]) => (
-          <button className="group flex h-11 items-center gap-3 rounded-lg border border-white/10 bg-black/24 px-3 text-left text-sm font-bold text-slate-300 transition hover:border-teal-300/40 hover:bg-teal-300/10 hover:text-white" key={type} onClick={() => addField(type)} type="button">
+          <button
+            className="group flex h-11 items-center gap-3 rounded-lg border border-white/10 bg-black/24 px-3 text-left text-sm font-bold text-slate-300 transition hover:border-teal-300/40 hover:bg-teal-300/10 hover:text-white"
+            key={type}
+            onClick={() => addField(type)}
+            type="button"
+          >
             <Icon className="size-4 text-teal-200 transition group-hover:scale-110" />
             {label}
           </button>
@@ -993,8 +1531,15 @@ function FieldLibrary({ addField, fields, selectedFieldIndex, setSelectedFieldIn
         <p className="text-sm font-black text-slate-300">Current flow</p>
         <div className="mt-3 space-y-2">
           {fields.map((field, index) => (
-            <button className={`flex w-full items-center gap-3 rounded-lg border p-3 text-left transition ${selectedFieldIndex === index ? "border-teal-300/50 bg-teal-300/10" : "border-white/10 bg-black/24 hover:border-white/20"}`} key={`${field.id ?? "new"}-${index}`} onClick={() => setSelectedFieldIndex(index)} type="button">
-              <GripVertical className="size-4 shrink-0 text-slate-500" />
+            <button
+              className={`flex w-full items-center gap-3 rounded-lg border p-3 text-left transition ${selectedFieldIndex === index ? "border-teal-300/50 bg-teal-300/10" : "border-white/10 bg-black/24 hover:border-white/20"}`}
+              key={`${field.id ?? "new"}-${index}`}
+              onClick={() => setSelectedFieldIndex(index)}
+              type="button"
+            >
+              <span className="grid size-5 shrink-0 place-items-center rounded bg-white/5 text-xs text-slate-400">
+                {index + 1}
+              </span>
               <span className="min-w-0 flex-1 truncate text-sm font-bold">{field.label}</span>
               {field.required ? <Check className="size-4 shrink-0 text-teal-200" /> : null}
             </button>
@@ -1020,7 +1565,8 @@ function BuilderPreview({
   selectedFieldIndex: number;
   theme: string;
 }) {
-  const width = device === "Mobile" ? "max-w-[360px]" : device === "Tablet" ? "max-w-[560px]" : "max-w-3xl";
+  const width =
+    device === "Mobile" ? "max-w-[360px]" : device === "Tablet" ? "max-w-[560px]" : "max-w-3xl";
   const activeField = draft.fields[selectedFieldIndex] ?? draft.fields[0];
   const activeTheme = resolveTheme(theme);
   return (
@@ -1028,11 +1574,18 @@ function BuilderPreview({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h3 className="text-lg font-black">Live Preview</h3>
-          <p className="mt-1 text-sm text-slate-400">One question at a time, Typeform-style.</p>
+          <p className="mt-1 text-sm text-slate-400">
+            Try the selected question. Preview answers aren’t saved.
+          </p>
         </div>
         <div className="flex flex-wrap gap-2">
           {(["Desktop", "Tablet", "Mobile"] as const).map((item) => (
-            <button className={`rounded-md px-3 py-1.5 text-xs font-black transition ${device === item ? "bg-white text-[#05070d]" : "border border-white/10 bg-black/24 text-slate-400 hover:text-white"}`} key={item} onClick={() => onDeviceChange(item)} type="button">
+            <button
+              className={`rounded-md px-3 py-1.5 text-xs font-black transition ${device === item ? "bg-white text-[#05070d]" : "border border-white/10 bg-black/24 text-slate-400 hover:text-white"}`}
+              key={item}
+              onClick={() => onDeviceChange(item)}
+              type="button"
+            >
               {item}
             </button>
           ))}
@@ -1040,19 +1593,41 @@ function BuilderPreview({
       </div>
       <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
         {themeCollections.map((item) => (
-          <button className={`shrink-0 rounded-md border px-3 py-1.5 text-xs font-black transition ${activeTheme.key === item.key ? "border-teal-300 bg-teal-300/15 text-white" : "border-white/10 bg-black/20 text-slate-400 hover:text-white"}`} key={item.key} onClick={() => onThemeChange(item.name)} type="button">
+          <button
+            className={`shrink-0 rounded-md border px-3 py-1.5 text-xs font-black transition ${activeTheme.key === item.key ? "border-teal-300 bg-teal-300/15 text-white" : "border-white/10 bg-black/20 text-slate-400 hover:text-white"}`}
+            key={item.key}
+            onClick={() => onThemeChange(item.name)}
+            type="button"
+          >
             {item.shortName}
           </button>
         ))}
       </div>
       <div className="mt-5 flex justify-center rounded-lg border border-teal-300/20 bg-[#101820] p-5">
-        <ThemeFormPreview branding={draft.branding} className={`min-h-[430px] w-full ${width}`} field={activeField} questionCount={draft.fields.length} questionIndex={selectedFieldIndex} themeCard={activeTheme} />
+        <ThemeFormPreview
+          branding={draft.branding}
+          className={`min-h-[430px] w-full ${width}`}
+          field={activeField}
+          questionCount={draft.fields.length}
+          questionIndex={selectedFieldIndex}
+          themeCard={activeTheme}
+        />
       </div>
     </section>
   );
 }
 
-function FormList({ forms, isLoading, selectedId, onSelect }: { forms: FormSummary[]; isLoading: boolean; selectedId: string | null; onSelect: (id: string) => void }) {
+function FormList({
+  forms,
+  isLoading,
+  selectedId,
+  onSelect,
+}: {
+  forms: FormSummary[];
+  isLoading: boolean;
+  selectedId: string | null;
+  onSelect: (id: string) => void;
+}) {
   return (
     <section className="rounded-lg border border-white/10 bg-white/[0.055] p-4">
       <div className="flex items-center justify-between gap-3">
@@ -1071,7 +1646,12 @@ function FormList({ forms, isLoading, selectedId, onSelect }: { forms: FormSumma
           />
         ) : null}
         {forms.map((form) => (
-          <button className={`w-full rounded-lg border p-3 text-left transition ${selectedId === form.id ? "border-teal-300/50 bg-teal-300/10" : "border-white/10 bg-black/24 hover:border-white/20"}`} key={form.id} onClick={() => onSelect(form.id)} type="button">
+          <button
+            className={`w-full rounded-lg border p-3 text-left transition ${selectedId === form.id ? "border-teal-300/50 bg-teal-300/10" : "border-white/10 bg-black/24 hover:border-white/20"}`}
+            key={form.id}
+            onClick={() => onSelect(form.id)}
+            type="button"
+          >
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <p className="truncate text-sm font-black text-slate-100">{form.title}</p>
@@ -1090,7 +1670,15 @@ function FormList({ forms, isLoading, selectedId, onSelect }: { forms: FormSumma
   );
 }
 
-function FormDetails({ draft, publicUrl, setDraft }: { draft: DraftForm; publicUrl: string; setDraft: Dispatch<SetStateAction<DraftForm>> }) {
+function FormDetails({
+  draft,
+  publicUrl,
+  setDraft,
+}: {
+  draft: DraftForm;
+  publicUrl: string;
+  setDraft: Dispatch<SetStateAction<DraftForm>>;
+}) {
   const updateBranding = (branding: Partial<DraftBranding>) => {
     setDraft((current) => ({ ...current, branding: { ...current.branding, ...branding } }));
   };
@@ -1100,21 +1688,44 @@ function FormDetails({ draft, publicUrl, setDraft }: { draft: DraftForm; publicU
       <div className="border-b border-white/10 bg-black/20 px-4 py-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h3 className="text-lg font-black">Form Details</h3>
-            <p className="mt-1 text-sm text-slate-400">Metadata, link, and visibility.</p>
+            <h3 className="text-lg font-black">Form details</h3>
+            <p className="mt-1 text-sm text-slate-400">
+              Give your form a name and decide who can see it.
+            </p>
           </div>
           <StatusBadge status={draft.status} />
         </div>
       </div>
       <div className="grid gap-4 p-4 lg:grid-cols-[minmax(0,1fr)_190px_150px]">
         <FieldShell label="Title">
-          <Input className="border-white/10 bg-black/25 text-white" onChange={(event) => setDraft((current) => ({ ...current, title: event.target.value }))} value={draft.title} />
+          <Input
+            aria-label="Form title"
+            maxLength={255}
+            className="border-white/10 bg-black/25 text-white"
+            onChange={(event) => setDraft((current) => ({ ...current, title: event.target.value }))}
+            value={draft.title}
+          />
         </FieldShell>
         <FieldShell label="Slug">
-          <Input className="border-white/10 bg-black/25 text-white" onChange={(event) => setDraft((current) => ({ ...current, slug: slugify(event.target.value) }))} value={draft.slug} />
+          <Input
+            className="border-white/10 bg-black/25 text-white"
+            onChange={(event) =>
+              setDraft((current) => ({ ...current, slug: slugify(event.target.value) }))
+            }
+            aria-label="Form slug"
+            maxLength={255}
+            value={draft.slug}
+          />
         </FieldShell>
         <FieldShell label="Visibility">
-          <select className="h-9 w-full rounded-md border border-white/10 bg-black/25 px-3 text-sm font-semibold text-white outline-none" onChange={(event) => setDraft((current) => ({ ...current, visibility: event.target.value as Visibility }))} value={draft.visibility}>
+          <select
+            className="h-9 w-full rounded-md border border-white/10 bg-black/25 px-3 text-sm font-semibold text-white outline-none"
+            onChange={(event) =>
+              setDraft((current) => ({ ...current, visibility: event.target.value as Visibility }))
+            }
+            aria-label="Form visibility"
+            value={draft.visibility}
+          >
             <option value="PRIVATE">Private</option>
             <option value="UNLISTED">Unlisted</option>
             <option value="PUBLIC">Public</option>
@@ -1122,7 +1733,13 @@ function FormDetails({ draft, publicUrl, setDraft }: { draft: DraftForm; publicU
         </FieldShell>
         <div className="lg:col-span-3">
           <FieldShell label="Description">
-            <Textarea className="min-h-20 border-white/10 bg-black/25 text-white" onChange={(event) => setDraft((current) => ({ ...current, description: event.target.value }))} value={draft.description} />
+            <Textarea
+              className="min-h-20 border-white/10 bg-black/25 text-white"
+              onChange={(event) =>
+                setDraft((current) => ({ ...current, description: event.target.value }))
+              }
+              value={draft.description}
+            />
           </FieldShell>
           <div className="mt-4 flex flex-wrap items-center gap-2 rounded-lg border border-white/10 bg-black/24 px-3 py-2 text-xs font-semibold text-slate-400">
             <Link2 className="size-4 shrink-0 text-teal-200" />
@@ -1133,14 +1750,23 @@ function FormDetails({ draft, publicUrl, setDraft }: { draft: DraftForm; publicU
       <div className="border-t border-white/10 p-4">
         <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_180px_180px]">
           <FieldShell label="Brand logo URL">
-            <Input className="border-white/10 bg-black/25 text-white" onChange={(event) => updateBranding({ logoUrl: event.target.value })} placeholder="https://yourcdn.com/logo.png" value={draft.branding.logoUrl} />
+            <Input
+              className="border-white/10 bg-black/25 text-white"
+              onChange={(event) => updateBranding({ logoUrl: event.target.value })}
+              placeholder="https://yourcdn.com/logo.png"
+              value={draft.branding.logoUrl}
+            />
           </FieldShell>
           <FieldShell label="Custom font">
-            <select className="h-9 w-full rounded-md border border-white/10 bg-black/25 px-3 text-sm font-semibold text-white outline-none" onChange={(event) => updateBranding({ fontFamily: event.target.value })} value={draft.branding.fontFamily}>
+            <select
+              className="h-9 w-full rounded-md border border-white/10 bg-black/25 px-3 text-sm font-semibold text-white outline-none"
+              onChange={(event) => updateBranding({ fontFamily: event.target.value })}
+              value={draft.branding.fontFamily}
+            >
               <option>Geist Sans</option>
-              <option>Inter</option>
-              <option>JetBrains Mono</option>
-              <option>Space Grotesk</option>
+              <option>Geist Mono</option>
+              <option>Georgia</option>
+              <option>System Sans</option>
             </select>
           </FieldShell>
           <div className="flex items-center justify-between rounded-lg border border-white/10 bg-black/24 px-3 py-2">
@@ -1148,19 +1774,30 @@ function FormDetails({ draft, publicUrl, setDraft }: { draft: DraftForm; publicU
               <p className="text-sm font-black">Glass cards</p>
               <p className="text-xs text-slate-500">Premium blur style</p>
             </div>
-            <Switch checked={draft.branding.glassCards} onCheckedChange={(glassCards) => updateBranding({ glassCards })} />
+            <Switch
+              aria-label="Glass cards"
+              checked={draft.branding.glassCards}
+              onCheckedChange={(glassCards) => updateBranding({ glassCards })}
+            />
           </div>
         </div>
         <div className="mt-3 flex flex-wrap items-center gap-3 rounded-lg border border-white/10 bg-black/24 p-3">
           <div
             className="grid size-10 place-items-center overflow-hidden rounded-lg border border-white/10 bg-white/[0.06] bg-cover bg-center"
-            style={draft.branding.logoUrl ? { backgroundImage: `url(${draft.branding.logoUrl})` } : undefined}
+            style={
+              draft.branding.logoUrl
+                ? { backgroundImage: `url(${draft.branding.logoUrl})` }
+                : undefined
+            }
           >
             {draft.branding.logoUrl ? null : <Palette className="size-4 text-teal-200" />}
           </div>
           <div>
             <p className="text-sm font-black">Brand preview</p>
-            <p className="text-xs text-slate-500">{draft.branding.fontFamily} · gradient background · {draft.branding.glassCards ? "glassmorphism" : "solid"} cards · dark mode ready</p>
+            <p className="text-xs text-slate-500">
+              {draft.branding.fontFamily} · gradient background ·{" "}
+              {draft.branding.glassCards ? "glassmorphism" : "solid"} cards · dark mode ready
+            </p>
           </div>
         </div>
       </div>
@@ -1169,15 +1806,32 @@ function FormDetails({ draft, publicUrl, setDraft }: { draft: DraftForm; publicU
 }
 
 function FieldShell({ children, label }: { children: ReactNode; label: string }) {
+  const id = useId();
   return (
     <div>
-      <Label className="mb-2 block text-slate-300">{label}</Label>
-      {children}
+      <Label htmlFor={id} className="mb-2 block text-slate-300">
+        {label}
+      </Label>
+      {isValidElement<{ id?: string }>(children) ? cloneElement(children, { id }) : children}
     </div>
   );
 }
 
-function FieldSettings({ allFields, field, onChange, onDelete, selectedIndex }: { allFields: DraftField[]; field: DraftField; onChange: (field: DraftField) => void; onDelete: () => void; selectedIndex: number }) {
+function FieldSettings({
+  allFields,
+  field,
+  onChange,
+  onDelete,
+  selectedIndex,
+  hasResponses,
+}: {
+  hasResponses: boolean;
+  allFields: DraftField[];
+  field: DraftField;
+  onChange: (field: DraftField) => void;
+  onDelete: () => void;
+  selectedIndex: number;
+}) {
   const previousFields = allFields.slice(0, selectedIndex);
   return (
     <section className="rounded-lg border border-white/10 bg-white/[0.055] p-4">
@@ -1186,27 +1840,78 @@ function FieldSettings({ allFields, field, onChange, onDelete, selectedIndex }: 
           <h3 className="text-lg font-black">Properties</h3>
           <p className="mt-1 text-sm text-slate-400">Controls for the selected field.</p>
         </div>
-        <Button className="border-rose-300/20 bg-rose-300/10 text-rose-100 hover:bg-rose-300/20" onClick={onDelete} size="icon-sm" variant="outline">
+        <Button
+          className="border-rose-300/20 bg-rose-300/10 text-rose-100 hover:bg-rose-300/20"
+          aria-label="Delete question"
+          disabled={hasResponses}
+          onClick={onDelete}
+          size="icon-sm"
+          variant="outline"
+        >
           <Trash2 className="size-4" />
         </Button>
       </div>
+      {hasResponses && (
+        <p className="mt-3 text-xs text-slate-400">
+          This question has responses. Its type and saved answers are protected.
+        </p>
+      )}
       <div className="mt-4 space-y-4">
         <FieldShell label="Type">
-          <select className="h-9 w-full rounded-md border border-white/10 bg-black/25 px-3 text-sm font-semibold text-white outline-none" onChange={(event) => onChange(normalizeFieldForType(field, event.target.value as FieldType))} value={field.type}>
-            {fieldTypes.map(([type, label]) => <option key={type} value={type}>{label}</option>)}
+          <select
+            className="h-9 w-full rounded-md border border-white/10 bg-black/25 px-3 text-sm font-semibold text-white outline-none"
+            onChange={(event) =>
+              onChange(normalizeFieldForType(field, event.target.value as FieldType))
+            }
+            disabled={hasResponses}
+            value={field.type}
+          >
+            {fieldTypes.map(([type, label]) => (
+              <option key={type} value={type}>
+                {label}
+              </option>
+            ))}
           </select>
         </FieldShell>
         <FieldShell label="Label">
-          <Input className="border-white/10 bg-black/25 text-white" onChange={(event) => onChange({ ...field, label: event.target.value })} value={field.label} />
+          <Input
+            className="border-white/10 bg-black/25 text-white"
+            onChange={(event) => onChange({ ...field, label: event.target.value })}
+            value={field.label}
+          />
         </FieldShell>
         <FieldShell label="Placeholder">
-          <Input className="border-white/10 bg-black/25 text-white" onChange={(event) => onChange({ ...field, placeholder: event.target.value })} value={field.placeholder ?? ""} />
+          <Input
+            className="border-white/10 bg-black/25 text-white"
+            onChange={(event) => onChange({ ...field, placeholder: event.target.value })}
+            value={field.placeholder ?? ""}
+          />
         </FieldShell>
         <FieldShell label="Help text">
-          <Textarea className="min-h-16 border-white/10 bg-black/25 text-white" onChange={(event) => onChange({ ...field, description: event.target.value })} value={field.description ?? ""} />
+          <Textarea
+            className="min-h-16 border-white/10 bg-black/25 text-white"
+            onChange={(event) => onChange({ ...field, description: event.target.value })}
+            value={field.description ?? ""}
+          />
         </FieldShell>
         <FieldShell label="Character limit">
-          <Input className="border-white/10 bg-black/25 text-white" min={1} onChange={(event) => onChange({ ...field, config: { ...field.config, maxLength: event.target.value ? Number(event.target.value) : undefined } })} placeholder="Optional max length" type="number" value={field.config?.maxLength ?? ""} />
+          <Input
+            className="border-white/10 bg-black/25 text-white"
+            min={1}
+            max={100000}
+            onChange={(event) =>
+              onChange({
+                ...field,
+                config: {
+                  ...field.config,
+                  maxLength: event.target.value ? Number(event.target.value) : undefined,
+                },
+              })
+            }
+            placeholder="Optional max length"
+            type="number"
+            value={field.config?.maxLength ?? ""}
+          />
         </FieldShell>
         <ConditionalLogicEditor field={field} onChange={onChange} previousFields={previousFields} />
         <div className="flex items-center justify-between rounded-lg border border-white/10 bg-black/24 p-3">
@@ -1214,22 +1919,51 @@ function FieldSettings({ allFields, field, onChange, onDelete, selectedIndex }: 
             <p className="text-sm font-black">Required</p>
             <p className="mt-1 text-xs text-slate-500">Validated when a response is submitted.</p>
           </div>
-          <Switch checked={field.required} onCheckedChange={(checked) => onChange({ ...field, required: checked })} />
+          <Switch
+            aria-label="Required question"
+            checked={field.required}
+            onCheckedChange={(checked) => onChange({ ...field, required: checked })}
+          />
         </div>
-        {optionFieldTypes.has(field.type) ? <OptionsEditor field={field} onChange={onChange} /> : null}
+        {optionFieldTypes.has(field.type) ? (
+          <OptionsEditor field={field} onChange={onChange} />
+        ) : null}
         {field.type === "RATING" ? <RatingSettings field={field} onChange={onChange} /> : null}
       </div>
     </section>
   );
 }
 
-function OptionsEditor({ field, onChange }: { field: DraftField; onChange: (field: DraftField) => void }) {
+function OptionsEditor({
+  field,
+  onChange,
+}: {
+  field: DraftField;
+  onChange: (field: DraftField) => void;
+}) {
   const options = field.config?.options ?? [];
   return (
     <div>
       <div className="flex items-center justify-between gap-3">
         <Label className="text-slate-300">Options</Label>
-        <Button className="border-white/12 bg-white/[0.06] text-white hover:bg-white/10" onClick={() => onChange({ ...field, config: { ...field.config, options: [...options, { label: `Option ${options.length + 1}`, value: `option-${options.length + 1}` }] } })} size="sm" type="button" variant="outline">
+        <Button
+          className="border-white/12 bg-white/[0.06] text-white hover:bg-white/10"
+          onClick={() =>
+            onChange({
+              ...field,
+              config: {
+                ...field.config,
+                options: [
+                  ...options,
+                  { label: `Option ${options.length + 1}`, value: `option-${options.length + 1}` },
+                ],
+              },
+            })
+          }
+          size="sm"
+          type="button"
+          variant="outline"
+        >
           <Plus className="size-4" />
           Add
         </Button>
@@ -1237,12 +1971,33 @@ function OptionsEditor({ field, onChange }: { field: DraftField; onChange: (fiel
       <div className="mt-2 space-y-2">
         {options.map((option, index) => (
           <div className="flex gap-2" key={`${option.value}-${index}`}>
-            <Input className="border-white/10 bg-black/25 text-white" onChange={(event) => {
-              const next = [...options];
-              next[index] = { label: event.target.value, value: slugify(event.target.value) || `option-${index + 1}` };
-              onChange({ ...field, config: { ...field.config, options: next } });
-            }} value={option.label} />
-            <Button className="border-white/12 bg-white/[0.06] text-white hover:bg-white/10" onClick={() => onChange({ ...field, config: { ...field.config, options: options.filter((_, optionIndex) => optionIndex !== index) } })} size="icon" type="button" variant="outline">
+            <Input
+              className="border-white/10 bg-black/25 text-white"
+              onChange={(event) => {
+                const next = [...options];
+                next[index] = {
+                  label: event.target.value,
+                  value: slugify(event.target.value) || `option-${index + 1}`,
+                };
+                onChange({ ...field, config: { ...field.config, options: next } });
+              }}
+              value={option.label}
+            />
+            <Button
+              className="border-white/12 bg-white/[0.06] text-white hover:bg-white/10"
+              onClick={() =>
+                onChange({
+                  ...field,
+                  config: {
+                    ...field.config,
+                    options: options.filter((_, optionIndex) => optionIndex !== index),
+                  },
+                })
+              }
+              size="icon"
+              type="button"
+              variant="outline"
+            >
               <Trash2 className="size-4" />
             </Button>
           </div>
@@ -1252,7 +2007,15 @@ function OptionsEditor({ field, onChange }: { field: DraftField; onChange: (fiel
   );
 }
 
-function ConditionalLogicEditor({ field, onChange, previousFields }: { field: DraftField; onChange: (field: DraftField) => void; previousFields: DraftField[] }) {
+function ConditionalLogicEditor({
+  field,
+  onChange,
+  previousFields,
+}: {
+  field: DraftField;
+  onChange: (field: DraftField) => void;
+  previousFields: DraftField[];
+}) {
   const condition = field.config?.condition;
   const source = condition ? previousFields[condition.fieldOrder] : previousFields[0];
   const sourceOptions = getConditionValues(source);
@@ -1262,7 +2025,9 @@ function ConditionalLogicEditor({ field, onChange, previousFields }: { field: Dr
       <div className="flex items-center justify-between gap-3">
         <div>
           <p className="text-sm font-black">Smart conditional logic</p>
-          <p className="mt-1 text-xs leading-5 text-slate-500">Show this field only when a previous answer matches.</p>
+          <p className="mt-1 text-xs leading-5 text-slate-500">
+            Show this field only when a previous answer matches.
+          </p>
         </div>
         <Switch
           checked={Boolean(condition)}
@@ -1272,7 +2037,9 @@ function ConditionalLogicEditor({ field, onChange, previousFields }: { field: Dr
               ...field,
               config: {
                 ...field.config,
-                condition: checked ? { fieldOrder: 0, equals: getConditionValues(previousFields[0])[0] ?? "yes" } : undefined,
+                condition: checked
+                  ? { fieldOrder: 0, equals: getConditionValues(previousFields[0])[0] ?? "yes" }
+                  : undefined,
               },
             });
           }}
@@ -1284,7 +2051,16 @@ function ConditionalLogicEditor({ field, onChange, previousFields }: { field: Dr
             className="h-9 w-full rounded-md border border-white/10 bg-black/25 px-3 text-sm font-semibold text-white outline-none"
             onChange={(event) => {
               const fieldOrder = Number(event.target.value);
-              onChange({ ...field, config: { ...field.config, condition: { fieldOrder, equals: getConditionValues(previousFields[fieldOrder])[0] ?? "" } } });
+              onChange({
+                ...field,
+                config: {
+                  ...field.config,
+                  condition: {
+                    fieldOrder,
+                    equals: getConditionValues(previousFields[fieldOrder])[0] ?? "",
+                  },
+                },
+              });
             }}
             value={condition.fieldOrder}
           >
@@ -1297,7 +2073,15 @@ function ConditionalLogicEditor({ field, onChange, previousFields }: { field: Dr
           {sourceOptions.length ? (
             <select
               className="h-9 w-full rounded-md border border-white/10 bg-black/25 px-3 text-sm font-semibold text-white outline-none"
-              onChange={(event) => onChange({ ...field, config: { ...field.config, condition: { ...condition, equals: event.target.value } } })}
+              onChange={(event) =>
+                onChange({
+                  ...field,
+                  config: {
+                    ...field.config,
+                    condition: { ...condition, equals: event.target.value },
+                  },
+                })
+              }
               value={condition.equals}
             >
               {sourceOptions.map((value) => (
@@ -1307,80 +2091,179 @@ function ConditionalLogicEditor({ field, onChange, previousFields }: { field: Dr
               ))}
             </select>
           ) : (
-            <Input className="border-white/10 bg-black/25 text-white" onChange={(event) => onChange({ ...field, config: { ...field.config, condition: { ...condition, equals: event.target.value } } })} placeholder="Answer to match" value={condition.equals} />
+            <Input
+              className="border-white/10 bg-black/25 text-white"
+              onChange={(event) =>
+                onChange({
+                  ...field,
+                  config: {
+                    ...field.config,
+                    condition: { ...condition, equals: event.target.value },
+                  },
+                })
+              }
+              placeholder="Answer to match"
+              value={condition.equals}
+            />
           )}
         </div>
       ) : null}
-      {!previousFields.length ? <p className="mt-3 text-xs text-slate-500">Add another field after this one to enable adaptive branching.</p> : null}
+      {!previousFields.length ? (
+        <p className="mt-3 text-xs text-slate-500">
+          Add another field after this one to enable adaptive branching.
+        </p>
+      ) : null}
     </div>
   );
 }
 
-function RatingSettings({ field, onChange }: { field: DraftField; onChange: (field: DraftField) => void }) {
+function RatingSettings({
+  field,
+  onChange,
+}: {
+  field: DraftField;
+  onChange: (field: DraftField) => void;
+}) {
   return (
     <div className="grid grid-cols-2 gap-3">
       <FieldShell label="Min">
-        <Input className="border-white/10 bg-black/25 text-white" min={0} onChange={(event) => onChange({ ...field, config: { ...field.config, min: Number(event.target.value) } })} type="number" value={field.config?.min ?? 1} />
+        <Input
+          className="border-white/10 bg-black/25 text-white"
+          min={1}
+          max={10}
+          onChange={(event) =>
+            onChange({ ...field, config: { ...field.config, min: Number(event.target.value) } })
+          }
+          type="number"
+          value={field.config?.min ?? 1}
+        />
       </FieldShell>
       <FieldShell label="Max">
-        <Input className="border-white/10 bg-black/25 text-white" min={1} onChange={(event) => onChange({ ...field, config: { ...field.config, max: Number(event.target.value) } })} type="number" value={field.config?.max ?? 5} />
+        <Input
+          className="border-white/10 bg-black/25 text-white"
+          min={1}
+          max={10}
+          onChange={(event) =>
+            onChange({ ...field, config: { ...field.config, max: Number(event.target.value) } })
+          }
+          type="number"
+          value={field.config?.max ?? 5}
+        />
       </FieldShell>
     </div>
   );
 }
 
-function PublishPanel({ draft, publicUrl, onCopy }: { draft: DraftForm; publicUrl: string; onCopy: () => void }) {
-  const publicReady = draft.status === "PUBLISHED" && draft.visibility !== "PRIVATE";
+function PublishPanel({
+  draft,
+  publicUrl,
+  onCopy,
+  hasUnsavedChanges,
+}: {
+  hasUnsavedChanges: boolean;
+  draft: DraftForm;
+  publicUrl: string;
+  onCopy: () => void;
+}) {
+  const publicReady =
+    Boolean(draft.id) &&
+    draft.status === "PUBLISHED" &&
+    draft.visibility !== "PRIVATE" &&
+    !hasUnsavedChanges;
   return (
     <section className="rounded-lg border border-white/10 bg-white/[0.055] p-4">
       <div className="flex items-center justify-between gap-3">
-        <h3 className="text-lg font-black">Publish Flow</h3>
+        <h3 className="text-lg font-black">Share your form</h3>
         <StatusBadge status={draft.status} />
       </div>
       <div className="mt-4 space-y-3 rounded-lg border border-white/10 bg-black/24 p-3">
         <div className="flex items-center gap-3 text-sm font-semibold text-slate-300">
-          {publicReady ? <Globe2 className="size-4 text-teal-200" /> : draft.visibility === "PRIVATE" ? <Lock className="size-4 text-rose-200" /> : <ShieldAlert className="size-4 text-amber-200" />}
-          {publicReady ? "Your form is live and ready to share." : draft.visibility === "PRIVATE" ? "Choose Public or Unlisted before publishing." : "Save and publish to activate the share link."}
+          {publicReady ? (
+            <Globe2 className="size-4 text-teal-200" />
+          ) : draft.visibility === "PRIVATE" ? (
+            <Lock className="size-4 text-rose-200" />
+          ) : (
+            <ShieldAlert className="size-4 text-amber-200" />
+          )}
+          {publicReady
+            ? "Your form is live and ready to share."
+            : draft.visibility === "PRIVATE"
+              ? "Choose Public or Unlisted before publishing."
+              : "Save and publish to activate the share link."}
         </div>
-        <p className="text-xs font-bold text-red-300">Before preview, make sure to save the changes.</p>
+        <p className="text-xs font-bold text-red-300">
+          The builder preview updates instantly. Save and publish to share your form.
+        </p>
         <div className="break-all text-xs leading-5 text-slate-500">{publicUrl}</div>
       </div>
       <div className="mt-3 grid grid-cols-2 gap-2">
-        <Button className="border-white/12 bg-white/[0.06] text-white hover:bg-white/10" disabled={!draft.id} onClick={onCopy} variant="outline">
+        <Button
+          className="border-white/12 bg-white/[0.06] text-white hover:bg-white/10"
+          disabled={!publicReady}
+          onClick={onCopy}
+          variant="outline"
+        >
           <Copy className="size-4" />
           Copy
         </Button>
-        <Button asChild className="border-white/12 bg-white/[0.06] text-white hover:bg-white/10" variant="outline">
-          <Link href={`/f/${draft.slug}`}>
+        {publicReady ? (
+          <Button asChild variant="outline">
+            <Link href={`/f/${draft.slug}`} target="_blank" rel="noopener noreferrer">
+              <Eye className="size-4" />
+              Open form
+            </Link>
+          </Button>
+        ) : (
+          <Button disabled variant="outline">
             <Eye className="size-4" />
-            Preview
-          </Link>
-        </Button>
+            Not published
+          </Button>
+        )}
       </div>
     </section>
   );
 }
 
-function ResponsesPanel({ data, fields, isLoading }: { data?: FormResponse; fields: DraftField[]; isLoading: boolean }) {
+function ResponsesPanel({
+  data,
+  fields,
+  isLoading,
+}: {
+  data?: FormResponse;
+  fields: DraftField[];
+  isLoading: boolean;
+}) {
   const latest = data?.responses.slice(-4).reverse() ?? [];
   const answersByResponse = new Map<string, number>();
-  data?.answers.forEach((answer) => answersByResponse.set(answer.responseId, (answersByResponse.get(answer.responseId) ?? 0) + 1));
+  data?.answers.forEach((answer) =>
+    answersByResponse.set(answer.responseId, (answersByResponse.get(answer.responseId) ?? 0) + 1),
+  );
   return (
     <section className="rounded-lg border border-white/10 bg-white/[0.055] p-4">
       <div className="flex items-center justify-between gap-3">
         <h3 className="text-lg font-black">Responses</h3>
-        <Badge className="border-teal-300/20 bg-teal-300/10 text-teal-100">{data?.responses.length ?? 0}</Badge>
+        <Badge className="border-teal-300/20 bg-teal-300/10 text-teal-100">
+          {data?.responses.length ?? 0}
+        </Badge>
       </div>
       <div className="mt-4 space-y-2">
         {isLoading ? <p className="text-sm text-slate-400">Loading responses...</p> : null}
-        {!isLoading && !latest.length ? <p className="text-sm leading-6 text-slate-400">Responses will appear here after people submit your published form.</p> : null}
+        {!isLoading && !latest.length ? (
+          <p className="text-sm leading-6 text-slate-400">
+            Responses will appear here after people submit your published form.
+          </p>
+        ) : null}
         {latest.map((response) => (
           <div className="rounded-lg border border-white/10 bg-black/24 p-3" key={response.id}>
             <div className="flex items-center gap-3">
               <Users className="size-4 text-teal-200" />
-              <p className="text-sm font-black">{response.respondentEmail ?? "Anonymous response"}</p>
+              <p className="text-sm font-black">
+                {response.respondentEmail ?? "Anonymous response"}
+              </p>
             </div>
-            <p className="mt-2 text-xs text-slate-500">{answersByResponse.get(response.id) ?? 0} of {fields.length} answers</p>
+            <p className="mt-2 text-xs text-slate-500">
+              {answersByResponse.get(response.id) ?? 0} of {fields.length} answers
+            </p>
           </div>
         ))}
       </div>
@@ -1389,31 +2272,49 @@ function ResponsesPanel({ data, fields, isLoading }: { data?: FormResponse; fiel
 }
 
 function ExploreSection({ onUseTemplate }: { onUseTemplate: (template: TemplateCard) => void }) {
-  const [activeCategory, setActiveCategory] = useState<TemplateCategory>("Trending");
+  const [activeCategory, setActiveCategory] = useState<TemplateCategory>("All");
   const [query, setQuery] = useState("");
   const [selectedTemplate, setSelectedTemplate] = useState<TemplateCard>(templateCards[0]!);
-  const categories = ["Trending", "Anime", "Cyberpunk", "Startup", "Gaming"] satisfies TemplateCategory[];
+  const categories = [
+    "All",
+    "Anime",
+    "Cyberpunk",
+    "Startup",
+    "Gaming",
+  ] satisfies TemplateCategory[];
   const visibleTemplates = templateCards.filter((template) => {
-    const matchesCategory = activeCategory === "Trending" ? template.category === "Trending" || template.completion >= 78 : template.category === activeCategory;
-    const matchesQuery = `${template.title} ${template.description} ${template.theme}`.toLowerCase().includes(query.toLowerCase());
+    const matchesCategory = activeCategory === "All" ? true : template.category === activeCategory;
+    const matchesQuery = `${template.title} ${template.description} ${template.theme}`
+      .toLowerCase()
+      .includes(query.toLowerCase());
     return matchesCategory && matchesQuery;
   });
 
   return (
-    <SectionShell title="Explore" subtitle="Production-ready templates with real builder handoff, search, and cinematic previews.">
+    <SectionShell
+      title="Explore"
+      subtitle="Start with a proven question structure, then make it your own."
+    >
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_390px]">
         <div className="space-y-5">
           <section className="rounded-lg border border-white/10 bg-white/[0.055] p-4">
             <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
               <div className="relative w-full lg:max-w-sm">
                 <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-500" />
-                <Input className="border-white/10 bg-black/25 pl-9 text-white" onChange={(event) => setQuery(event.target.value)} placeholder="Search templates, use cases, themes..." value={query} />
+                <Input
+                  className="border-white/10 bg-black/25 pl-9 text-white"
+                  onChange={(event) => setQuery(event.target.value)}
+                  placeholder="Search templates, use cases, themes..."
+                  value={query}
+                />
               </div>
               <div className="flex flex-wrap gap-2">
                 {categories.map((category) => (
                   <button
                     className={`rounded-md border px-3 py-2 text-xs font-black transition ${
-                      activeCategory === category ? "border-teal-300 bg-teal-300/15 text-white" : "border-white/10 bg-black/20 text-slate-400 hover:text-white"
+                      activeCategory === category
+                        ? "border-teal-300 bg-teal-300/15 text-white"
+                        : "border-white/10 bg-black/20 text-slate-400 hover:text-white"
                     }`}
                     key={category}
                     onClick={() => setActiveCategory(category)}
@@ -1453,11 +2354,25 @@ function ExploreSection({ onUseTemplate }: { onUseTemplate: (template: TemplateC
   );
 }
 
-function TemplateCardView({ onSelect, onUse, selected, template }: { onSelect: () => void; onUse: () => void; selected: boolean; template: TemplateCard }) {
+function TemplateCardView({
+  onSelect,
+  onUse,
+  selected,
+  template,
+}: {
+  onSelect: () => void;
+  onUse: () => void;
+  selected: boolean;
+  template: TemplateCard;
+}) {
   return (
-    <article className={`group overflow-hidden rounded-lg border bg-white/[0.055] p-4 transition duration-300 hover:-translate-y-1 hover:shadow-[0_0_70px_rgba(20,184,166,0.14)] ${selected ? "border-teal-300/50" : "border-white/10 hover:border-teal-300/35"}`}>
+    <article
+      className={`group overflow-hidden rounded-lg border bg-white/[0.055] p-4 transition duration-300 hover:-translate-y-1 hover:shadow-[0_0_70px_rgba(20,184,166,0.14)] ${selected ? "border-teal-300/50" : "border-white/10 hover:border-teal-300/35"}`}
+    >
       <button className="block w-full text-left" onClick={onSelect} type="button">
-        <div className={`relative h-40 overflow-hidden rounded-lg bg-gradient-to-br ${template.gradient}`}>
+        <div
+          className={`relative h-40 overflow-hidden rounded-lg bg-gradient-to-br ${template.gradient}`}
+        >
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_22%_18%,rgba(255,255,255,0.38),transparent_18%),linear-gradient(135deg,rgba(0,0,0,0.04),rgba(0,0,0,0.34))]" />
           <div className="absolute bottom-4 left-4 right-4 rounded-lg border border-white/25 bg-black/20 p-3 backdrop-blur-md transition duration-300 group-hover:-translate-y-1">
             <div className="h-2 w-24 rounded-full bg-white/70" />
@@ -1467,21 +2382,31 @@ function TemplateCardView({ onSelect, onUse, selected, template }: { onSelect: (
               <div className="h-6 rounded bg-white/20" />
             </div>
           </div>
-          <Badge className="absolute left-3 top-3 border-black/10 bg-black/25 text-white backdrop-blur">{template.category}</Badge>
+          <Badge className="absolute left-3 top-3 border-black/10 bg-black/25 text-white backdrop-blur">
+            {template.category}
+          </Badge>
         </div>
         <div className="mt-4 flex items-start justify-between gap-3">
           <div>
             <h3 className="text-lg font-black">{template.title}</h3>
-            <p className="mt-2 line-clamp-2 text-sm leading-6 text-slate-400">{template.description}</p>
+            <p className="mt-2 line-clamp-2 text-sm leading-6 text-slate-400">
+              {template.description}
+            </p>
           </div>
-          <span className="shrink-0 rounded-md border border-teal-300/20 bg-teal-300/10 px-2 py-1 text-xs font-black text-teal-100">{template.completion}%</span>
+          <span className="shrink-0 rounded-md border border-teal-300/20 bg-teal-300/10 px-2 py-1 text-xs font-black text-teal-100">
+            {template.fields.length} questions
+          </span>
         </div>
       </button>
       <div className="mt-4 flex items-center justify-between gap-3 border-t border-white/10 pt-3 text-xs font-semibold text-slate-500">
-        <span>{template.stats}</span>
+        <span>{template.theme}</span>
         <span>{template.fields.length} fields</span>
       </div>
-      <Button className="mt-4 w-full bg-white text-[#05070d] hover:bg-teal-100" onClick={onUse} size="sm">
+      <Button
+        className="mt-4 w-full bg-white text-[#05070d] hover:bg-teal-100"
+        onClick={onUse}
+        size="sm"
+      >
         <FilePlus2 className="size-4" />
         Use template
       </Button>
@@ -1489,31 +2414,47 @@ function TemplateCardView({ onSelect, onUse, selected, template }: { onSelect: (
   );
 }
 
-function TemplatePreviewPanel({ onUseTemplate, template }: { onUseTemplate: (template: TemplateCard) => void; template: TemplateCard }) {
+function TemplatePreviewPanel({
+  onUseTemplate,
+  template,
+}: {
+  onUseTemplate: (template: TemplateCard) => void;
+  template: TemplateCard;
+}) {
   return (
     <aside className="sticky top-4 h-fit rounded-lg border border-white/10 bg-white/[0.055] p-4 shadow-[0_24px_90px_rgba(0,0,0,0.28)]">
-      <div className={`relative h-56 overflow-hidden rounded-lg bg-gradient-to-br ${template.gradient}`}>
+      <div
+        className={`relative h-56 overflow-hidden rounded-lg bg-gradient-to-br ${template.gradient}`}
+      >
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_24%_18%,rgba(255,255,255,0.36),transparent_18%),linear-gradient(180deg,transparent,rgba(0,0,0,0.45))]" />
         <div className="absolute bottom-4 left-4 right-4">
-          <Badge className="border-white/20 bg-black/25 text-white backdrop-blur">{template.theme}</Badge>
+          <Badge className="border-white/20 bg-black/25 text-white backdrop-blur">
+            {template.theme}
+          </Badge>
           <h3 className="mt-3 text-2xl font-black leading-tight">{template.title}</h3>
         </div>
       </div>
       <p className="mt-4 text-sm leading-6 text-slate-300">{template.description}</p>
       <div className="mt-4 grid grid-cols-3 gap-2">
-        <MetricPill label="Uses" value={template.stats} />
-        <MetricPill label="Complete" value={`${template.completion}%`} />
+        <MetricPill label="Theme" value={template.theme} />
+        <MetricPill label="Category" value={template.category} />
         <MetricPill label="Fields" value={String(template.fields.length)} />
       </div>
       <div className="mt-5 space-y-2">
         {template.fields.map((field, index) => (
-          <div className="rounded-lg border border-white/10 bg-black/24 p-3" key={`${template.title}-${field.label}`}>
+          <div
+            className="rounded-lg border border-white/10 bg-black/24 p-3"
+            key={`${template.title}-${field.label}`}
+          >
             <p className="text-xs font-bold text-slate-500">Question {index + 1}</p>
             <p className="mt-1 text-sm font-black">{field.label}</p>
           </div>
         ))}
       </div>
-      <Button className="mt-5 w-full bg-teal-300 text-[#04201d] hover:bg-teal-200" onClick={() => onUseTemplate(template)}>
+      <Button
+        className="mt-5 w-full bg-teal-300 text-[#04201d] hover:bg-teal-200"
+        onClick={() => onUseTemplate(template)}
+      >
         <Rocket className="size-4" />
         Load into builder
       </Button>
@@ -1521,14 +2462,37 @@ function TemplatePreviewPanel({ onUseTemplate, template }: { onUseTemplate: (tem
   );
 }
 
-function ThemesSection({ onApplyTheme, selectedTheme }: { onApplyTheme: (theme: ThemeCard) => void; selectedTheme: string }) {
+function ThemesSection({
+  onApplyTheme,
+  selectedTheme,
+}: {
+  onApplyTheme: (theme: ThemeCard) => void;
+  selectedTheme: string;
+}) {
   const [activeCategory, setActiveCategory] = useState<ThemeCategory>("All");
   const [selected, setSelected] = useState<ThemeCard>(resolveTheme(selectedTheme));
-  const categories = ["All", "Cyberpunk", "Anime", "Hacker", "Space", "Gaming", "Premium", "Business", "Retro", "Default"] satisfies ThemeCategory[];
-  const visibleThemes = activeCategory === "All" ? themeCollections : themeCollections.filter((themeCard) => themeCard.category === activeCategory);
+  const categories = [
+    "All",
+    "Cyberpunk",
+    "Anime",
+    "Hacker",
+    "Space",
+    "Gaming",
+    "Premium",
+    "Business",
+    "Retro",
+    "Default",
+  ] satisfies ThemeCategory[];
+  const visibleThemes =
+    activeCategory === "All"
+      ? themeCollections
+      : themeCollections.filter((themeCard) => themeCard.category === activeCategory);
 
   return (
-    <SectionShell title="Themes" subtitle="A live gallery where cards wake up on hover and apply directly to the form preview.">
+    <SectionShell
+      title="Themes"
+      subtitle="A live gallery where cards wake up on hover and apply directly to the form preview."
+    >
       <section className="relative overflow-hidden rounded-lg border border-white/10 bg-white/[0.055] p-5">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_10%,rgba(20,184,166,0.18),transparent_28%),radial-gradient(circle_at_80%_0%,rgba(244,63,94,0.14),transparent_30%)]" />
         <div className="relative grid gap-5 xl:grid-cols-[minmax(0,1fr)_450px]">
@@ -1537,7 +2501,9 @@ function ThemesSection({ onApplyTheme, selectedTheme }: { onApplyTheme: (theme: 
               {categories.map((category) => (
                 <button
                   className={`shrink-0 rounded-md border px-3 py-2 text-xs font-black transition ${
-                    activeCategory === category ? "border-teal-300 bg-teal-300/15 text-white" : "border-white/10 bg-black/20 text-slate-400 hover:text-white"
+                    activeCategory === category
+                      ? "border-teal-300 bg-teal-300/15 text-white"
+                      : "border-white/10 bg-black/20 text-slate-400 hover:text-white"
                   }`}
                   key={category}
                   onClick={() => setActiveCategory(category)}
@@ -1560,34 +2526,65 @@ function ThemesSection({ onApplyTheme, selectedTheme }: { onApplyTheme: (theme: 
               ))}
             </div>
           </div>
-          <ThemePreviewPanel onApplyTheme={onApplyTheme} selected={selected} selectedTheme={selectedTheme} />
+          <ThemePreviewPanel
+            onApplyTheme={onApplyTheme}
+            selected={selected}
+            selectedTheme={selectedTheme}
+          />
         </div>
       </section>
     </SectionShell>
   );
 }
 
-function ThemeCardView({ active, applied, onApply, onSelect, themeCard }: { active: boolean; applied: boolean; onApply: () => void; onSelect: () => void; themeCard: ThemeCard }) {
+function ThemeCardView({
+  active,
+  applied,
+  onApply,
+  onSelect,
+  themeCard,
+}: {
+  active: boolean;
+  applied: boolean;
+  onApply: () => void;
+  onSelect: () => void;
+  themeCard: ThemeCard;
+}) {
   return (
-    <article className={`group theme-tilt overflow-hidden rounded-lg border bg-black/24 p-4 transition duration-300 hover:shadow-[0_0_70px_rgba(20,184,166,0.14)] ${active ? "border-teal-300/50" : "border-white/10 hover:border-teal-300/35"}`}>
+    <article
+      className={`group theme-tilt overflow-hidden rounded-lg border bg-black/24 p-4 transition duration-300 hover:shadow-[0_0_70px_rgba(20,184,166,0.14)] ${active ? "border-teal-300/50" : "border-white/10 hover:border-teal-300/35"}`}
+    >
       <button className="block w-full text-left" onClick={onSelect} type="button">
-        <p className="text-xs font-black uppercase tracking-[0.2em] text-slate-500">{themeCard.category}</p>
-        <div className={`theme-hologram relative mt-4 h-44 overflow-hidden rounded-lg bg-gradient-to-br ${themeCard.surface}`}>
+        <p className="text-xs font-black uppercase tracking-[0.2em] text-slate-500">
+          {themeCard.category}
+        </p>
+        <div
+          className={`theme-hologram relative mt-4 h-44 overflow-hidden rounded-lg bg-gradient-to-br ${themeCard.surface}`}
+        >
           <ThemeAtmosphere themeKey={themeCard.key} compact />
           <div className="absolute bottom-4 left-4 right-4 rounded-lg border border-white/25 bg-black/20 p-3 backdrop-blur-md transition group-hover:-translate-y-1">
             <div className="h-2 w-20 rounded-full bg-white/70" />
             <div className="mt-3 h-8 rounded-md border border-white/25 bg-white/15" />
           </div>
-          {applied ? <Badge className="absolute right-3 top-3 border-teal-300/20 bg-teal-300/20 text-teal-50">Applied</Badge> : null}
+          {applied ? (
+            <Badge className="absolute right-3 top-3 border-teal-300/20 bg-teal-300/20 text-teal-50">
+              Applied
+            </Badge>
+          ) : null}
         </div>
         <h3 className="mt-4 text-xl font-black">{themeCard.name}</h3>
         <p className="mt-2 text-sm leading-6 text-slate-400">{themeCard.tone}</p>
       </button>
       <div className="mt-4 flex items-center justify-between gap-3 border-t border-white/10 pt-3 text-xs font-semibold text-slate-500">
-        <span>{themeCard.motion}</span>
-        <span className="text-teal-100">{themeCard.conversion}</span>
+        <span>Preview · answers aren’t saved</span>
+        <span className="text-teal-100">Theme preview</span>
       </div>
-      <Button className="mt-4 w-full border-white/12 bg-white/[0.06] text-white hover:bg-white/10" onClick={onApply} size="sm" variant="outline">
+      <Button
+        className="mt-4 w-full border-white/12 bg-white/[0.06] text-white hover:bg-white/10"
+        onClick={onApply}
+        size="sm"
+        variant="outline"
+      >
         <Palette className="size-4" />
         Apply theme
       </Button>
@@ -1595,7 +2592,15 @@ function ThemeCardView({ active, applied, onApply, onSelect, themeCard }: { acti
   );
 }
 
-function ThemePreviewPanel({ onApplyTheme, selected, selectedTheme }: { onApplyTheme: (theme: ThemeCard) => void; selected: ThemeCard; selectedTheme: string }) {
+function ThemePreviewPanel({
+  onApplyTheme,
+  selected,
+  selectedTheme,
+}: {
+  onApplyTheme: (theme: ThemeCard) => void;
+  selected: ThemeCard;
+  selectedTheme: string;
+}) {
   return (
     <aside className="sticky top-4 h-fit rounded-lg border border-white/10 bg-black/35 p-4 backdrop-blur-xl">
       <ThemeFormPreview className="min-h-[420px]" questionCount={4} themeCard={selected} />
@@ -1604,7 +2609,10 @@ function ThemePreviewPanel({ onApplyTheme, selected, selectedTheme }: { onApplyT
         <MetricPill label="Type" value={selected.typography} />
         <MetricPill label="Motion" value={selected.motion} />
       </div>
-      <Button className="mt-5 w-full bg-white text-[#05070d] hover:bg-teal-100" onClick={() => onApplyTheme(selected)}>
+      <Button
+        className="mt-5 w-full bg-white text-[#05070d] hover:bg-teal-100"
+        onClick={() => onApplyTheme(selected)}
+      >
         <Wand2 className="size-4" />
         {resolveTheme(selectedTheme).key === selected.key ? "Applied" : "Apply to builder"}
       </Button>
@@ -1612,13 +2620,27 @@ function ThemePreviewPanel({ onApplyTheme, selected, selectedTheme }: { onApplyT
   );
 }
 
-function ThemeFormPreview({ branding, className = "", field, questionCount, questionIndex = 0, themeCard }: { branding?: DraftBranding; className?: string; field?: DraftField; questionCount: number; questionIndex?: number; themeCard: ThemeCard }) {
+function ThemeFormPreview({
+  branding,
+  className = "",
+  field,
+  questionCount,
+  questionIndex = 0,
+  themeCard,
+}: {
+  branding?: DraftBranding;
+  className?: string;
+  field?: DraftField;
+  questionCount: number;
+  questionIndex?: number;
+  themeCard: ThemeCard;
+}) {
   const [light, setLight] = useState({ x: 48, y: 28 });
   const prompt = field?.label || samplePrompt(themeCard.key);
   const style = {
     "--mouse-x": `${light.x}%`,
     "--mouse-y": `${light.y}%`,
-    fontFamily: branding?.fontFamily,
+    fontFamily: resolveFormFont(branding?.fontFamily),
   } as CSSProperties;
 
   const updateLight = (event: MouseEvent<HTMLDivElement>) => {
@@ -1639,15 +2661,28 @@ function ThemeFormPreview({ branding, className = "", field, questionCount, ques
       <div className="theme-light pointer-events-none absolute inset-0" />
       <div className="relative flex min-h-[360px] flex-col justify-center">
         {branding?.logoUrl ? (
-          <div className="mb-5 size-14 rounded-lg border border-white/20 bg-cover bg-center shadow-[0_12px_40px_rgba(0,0,0,0.28)]" style={{ backgroundImage: `url(${branding.logoUrl})` }} />
+          <div
+            className="mb-5 size-14 rounded-lg border border-white/20 bg-cover bg-center shadow-[0_12px_40px_rgba(0,0,0,0.28)]"
+            style={{ backgroundImage: `url(${branding.logoUrl})` }}
+          />
         ) : null}
-        <Badge className="theme-badge w-fit border-white/20 bg-black/25 text-white backdrop-blur">Question {Math.min(questionIndex + 1, questionCount)} of {questionCount}</Badge>
-        <p className="mt-5 text-xs font-black uppercase tracking-[0.22em] opacity-70">{themeCard.shortName} mode</p>
+        <Badge className="theme-badge w-fit border-white/20 bg-black/25 text-white backdrop-blur">
+          Question {Math.min(questionIndex + 1, questionCount)} of {questionCount}
+        </Badge>
+        <p className="mt-5 text-xs font-black uppercase tracking-[0.22em] opacity-70">
+          {themeCard.shortName} mode
+        </p>
         <h4 className="theme-title mt-5 text-3xl font-black leading-tight sm:text-4xl">{prompt}</h4>
-        <div className="mt-7">{field ? renderPreviewControl(field) : <ThemeSampleInput themeKey={themeCard.key} />}</div>
+        <div className="mt-7">
+          {field ? (
+            <QuestionPreview key={`${questionIndex}-${field.type}`} field={field} />
+          ) : (
+            <ThemeSampleInput themeKey={themeCard.key} />
+          )}
+        </div>
         <div className="mt-8 flex items-center justify-between gap-3 text-xs font-semibold opacity-75">
-          <span>{themeCard.motion}</span>
-          <span className="theme-key rounded-md border px-2 py-1">{themeCard.key === "hacker" ? "RETURN" : "Enter"}</span>
+          <span>Preview · answers aren’t saved</span>
+          <span className="theme-key rounded-md border px-2 py-1">Preview</span>
         </div>
       </div>
     </div>
@@ -1659,16 +2694,60 @@ function ThemeAtmosphere({ compact = false, themeKey }: { compact?: boolean; the
     <>
       <div className={`absolute inset-0 bg-gradient-to-br ${resolveTheme(themeKey).surface}`} />
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_24%_18%,rgba(255,255,255,0.28),transparent_18%),linear-gradient(180deg,rgba(0,0,0,0.04),rgba(0,0,0,0.52))]" />
-      {themeKey === "cyberpunk" ? <><div className="cyber-grid absolute inset-0" /><div className="cyber-particles absolute inset-0" /><div className="theme-scanline absolute left-0 right-0 top-0 h-16 bg-gradient-to-b from-cyan-300/0 via-cyan-300/18 to-cyan-300/0" /></> : null}
-      {themeKey === "sakura" ? <><div className="sakura-clouds absolute inset-0" /><div className="sakura-petals absolute inset-0" /></> : null}
-      {themeKey === "hacker" ? <><div className="matrix-rain absolute inset-0" /><div className="crt-lines absolute inset-0" /></> : null}
-      {themeKey === "space" ? <><div className="space-stars absolute inset-0" /><div className="radar-ring absolute left-1/2 top-1/2 size-52 -translate-x-1/2 -translate-y-1/2" /><div className="theme-orbit absolute left-1/2 top-1/2 size-72 rounded-full border border-sky-300/25" /></> : null}
-      {themeKey === "gaming" ? <><div className="gaming-hud absolute inset-0" /><div className="energy-particles absolute inset-0" /></> : null}
-      {themeKey === "liquid" ? <><div className="liquid-reflection absolute inset-0" /><div className="absolute inset-8 rounded-[40%] bg-white/25 blur-3xl" /></> : null}
+      {themeKey === "cyberpunk" ? (
+        <>
+          <div className="cyber-grid absolute inset-0" />
+          <div className="cyber-particles absolute inset-0" />
+          <div className="theme-scanline absolute left-0 right-0 top-0 h-16 bg-gradient-to-b from-cyan-300/0 via-cyan-300/18 to-cyan-300/0" />
+        </>
+      ) : null}
+      {themeKey === "sakura" ? (
+        <>
+          <div className="sakura-clouds absolute inset-0" />
+          <div className="sakura-petals absolute inset-0" />
+        </>
+      ) : null}
+      {themeKey === "hacker" ? (
+        <>
+          <div className="matrix-rain absolute inset-0" />
+          <div className="crt-lines absolute inset-0" />
+        </>
+      ) : null}
+      {themeKey === "space" ? (
+        <>
+          <div className="space-stars absolute inset-0" />
+          <div className="radar-ring absolute left-1/2 top-1/2 size-52 -translate-x-1/2 -translate-y-1/2" />
+          <div className="theme-orbit absolute left-1/2 top-1/2 size-72 rounded-full border border-sky-300/25" />
+        </>
+      ) : null}
+      {themeKey === "gaming" ? (
+        <>
+          <div className="gaming-hud absolute inset-0" />
+          <div className="energy-particles absolute inset-0" />
+        </>
+      ) : null}
+      {themeKey === "liquid" ? (
+        <>
+          <div className="liquid-reflection absolute inset-0" />
+          <div className="absolute inset-8 rounded-[40%] bg-white/25 blur-3xl" />
+        </>
+      ) : null}
       {themeKey === "startup" ? <div className="startup-grid absolute inset-0" /> : null}
-      {themeKey === "xp" ? <><div className="xp-clouds absolute inset-0" /><div className="crt-lines absolute inset-0 opacity-30" /></> : null}
-      {themeKey === "glass" ? <><div className="glass-layers absolute inset-0" /><div className="PollIq-particles absolute inset-0" /></> : null}
-      {compact ? <div className="absolute inset-0 bg-black/10 opacity-0 transition group-hover:opacity-100" /> : null}
+      {themeKey === "xp" ? (
+        <>
+          <div className="xp-clouds absolute inset-0" />
+          <div className="crt-lines absolute inset-0 opacity-30" />
+        </>
+      ) : null}
+      {themeKey === "glass" ? (
+        <>
+          <div className="glass-layers absolute inset-0" />
+          <div className="PollIq-particles absolute inset-0" />
+        </>
+      ) : null}
+      {compact ? (
+        <div className="absolute inset-0 bg-black/10 opacity-0 transition group-hover:opacity-100" />
+      ) : null}
     </>
   );
 }
@@ -1677,14 +2756,22 @@ function ThemeSampleInput({ themeKey }: { themeKey: ThemeKey }) {
   if (themeKey === "hacker") {
     return (
       <div className="font-mono">
-        <p className="terminal-line overflow-hidden whitespace-nowrap text-sm text-[#00FF66]">operator@polliq:~$ answer --now</p>
-        <button className="mt-4 w-full rounded-md border border-[#00FF66]/50 bg-[#00FF66]/10 px-4 py-3 text-left text-sm font-black text-[#00FF66]" type="button">&gt; continue</button>
+        <p className="terminal-line overflow-hidden whitespace-nowrap text-sm text-[#00FF66]">
+          operator@polliq:~$ answer --now
+        </p>
+        <div className="mt-4 w-full rounded-md border border-[#00FF66]/50 bg-[#00FF66]/10 px-4 py-3 text-left text-sm font-black text-[#00FF66]">
+          &gt; your answer here_
+        </div>
       </div>
     );
   }
   return (
     <div className="theme-input rounded-lg border px-4 py-3 text-sm font-semibold">
-      {themeKey === "sakura" ? "A soft cinematic moment" : themeKey === "xp" ? "Type your answer here..." : "Immersive and fast"}
+      {themeKey === "sakura"
+        ? "A soft cinematic moment"
+        : themeKey === "xp"
+          ? "Type your answer here..."
+          : "Immersive and fast"}
     </div>
   );
 }
@@ -1698,27 +2785,49 @@ function MetricPill({ label, value }: { label: string; value: string }) {
   );
 }
 
-function AnalyticsSection({ fields, responseData, totals }: { fields: DraftField[]; responseData?: FormResponse; totals: ReturnType<typeof getTotals> }) {
+function AnalyticsSection({
+  fields,
+  responseData,
+  totals,
+}: {
+  fields: DraftField[];
+  responseData?: FormResponse;
+  totals: ReturnType<typeof getTotals>;
+}) {
   const [view, setView] = useState<"trend" | "questions" | "mix">("trend");
   const trend = useMemo(() => buildResponseTrend(responseData), [responseData]);
-  const fieldCoverage = useMemo(() => buildFieldCoverage(responseData, fields), [responseData, fields]);
+  const fieldCoverage = useMemo(
+    () => buildFieldCoverage(responseData, fields),
+    [responseData, fields],
+  );
   const peak = Math.max(1, ...trend.map((item) => item.count));
-  const avgPerDay = trend.length ? (responseData?.responses.length ?? 0) / trend.length : 0;
+  const avgPerDay = trend.length
+    ? trend.reduce((sum, day) => sum + day.count, 0) / trend.length
+    : 0;
 
   return (
-    <SectionShell title="Analytics" subtitle="Mission-control style metrics for form performance.">
-      <Stats totals={totals} />
+    <SectionShell
+      title="Analytics"
+      subtitle="Understand the answers coming into your selected form."
+    >
       <AdvancedAnalyticsStrip responseData={responseData} totals={totals} />
       <div className="grid gap-5 xl:grid-cols-[1.35fr_0.65fr]">
         <section className="rounded-lg border border-white/10 bg-white/[0.055] p-5">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <h3 className="text-xl font-black">Responses Over Time</h3>
-              <p className="mt-1 text-sm text-slate-400">Daily submissions from the selected form.</p>
+              <p className="mt-1 text-sm text-slate-400">
+                Daily submissions from the selected form.
+              </p>
             </div>
             <div className="flex rounded-lg border border-white/10 bg-black/24 p-1">
               {(["trend", "questions", "mix"] as const).map((item) => (
-                <button className={`rounded-md px-3 py-1.5 text-xs font-black transition ${view === item ? "bg-white text-[#05070d]" : "text-slate-400 hover:text-white"}`} key={item} onClick={() => setView(item)} type="button">
+                <button
+                  className={`rounded-md px-3 py-1.5 text-xs font-black transition ${view === item ? "bg-white text-[#05070d]" : "text-slate-400 hover:text-white"}`}
+                  key={item}
+                  onClick={() => setView(item)}
+                  type="button"
+                >
                   {item === "trend" ? "Trend" : item === "questions" ? "Questions" : "Mix"}
                 </button>
               ))}
@@ -1735,9 +2844,15 @@ function AnalyticsSection({ fields, responseData, totals }: { fields: DraftField
         </section>
         <section className="rounded-lg border border-amber-300/20 bg-amber-300/10 p-5">
           <ShieldAlert className="size-6 text-amber-100" />
-          <h3 className="mt-4 text-xl font-black">{getAnalyticsInsight(fieldCoverage)}</h3>
+          <h3 className="mt-4 text-xl font-black">
+            {responseData?.responses.length
+              ? getAnalyticsInsight(fieldCoverage)
+              : "Your insights start with an answer"}
+          </h3>
           <p className="mt-2 text-sm leading-6 text-amber-50/80">
-            {responseData?.responses.length ? `${responseData.responses.length} submissions, ${avgPerDay.toFixed(1)} avg/day, and ${fields.length} questions tracked.` : "Publish and share this form to unlock live question-level insights."}
+            {responseData?.responses.length
+              ? `${responseData.responses.length} submissions, ${avgPerDay.toFixed(1)} avg/day, and ${fields.length} questions tracked.`
+              : "Publish and share this form to unlock live question-level insights."}
           </p>
         </section>
       </div>
@@ -1745,30 +2860,85 @@ function AnalyticsSection({ fields, responseData, totals }: { fields: DraftField
   );
 }
 
-function ResponsesSection({ data, fields, isLoading }: { data?: FormResponse; fields: DraftField[]; isLoading: boolean }) {
-  const ordered = (data?.responses ?? []).slice().reverse();
+function ResponsesSection({
+  data,
+  fields,
+  isLoading,
+}: {
+  data?: FormResponse;
+  fields: DraftField[];
+  isLoading: boolean;
+}) {
+  const [search, setSearch] = useState("");
+  const ordered = (data?.responses ?? [])
+    .slice()
+    .reverse()
+    .filter((response) =>
+      `${response.respondentEmail ?? "Anonymous"} ${response.id}`
+        .toLowerCase()
+        .includes(search.trim().toLowerCase()),
+    );
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const selected = ordered.find((response) => response.id === selectedId) ?? ordered[0];
   const answers = getAnswersForResponse(data, selected?.id);
 
   return (
-    <SectionShell title="Responses" subtitle="Submission list on the left, beautiful response preview on the right.">
+    <SectionShell title="Responses" subtitle="Every answer, organized and ready to explore.">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="workspace-search">
+          <Search size={15} />
+          <input
+            aria-label="Search responses"
+            placeholder="Search email or response ID…"
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+          />
+        </div>
+        <Button
+          variant="outline"
+          disabled={isLoading || !data?.responses.length}
+          onClick={() => {
+            if (data) exportResponsesCsv(data, fields);
+          }}
+        >
+          <Download size={16} />
+          Export CSV
+        </Button>
+      </div>
       <div className="grid gap-5 xl:grid-cols-[340px_minmax(0,1fr)]">
         <section className="rounded-lg border border-white/10 bg-white/[0.055] p-4">
           <div className="flex items-center justify-between gap-3">
             <h3 className="text-lg font-black">Submissions</h3>
-            <Badge className="border-teal-300/20 bg-teal-300/10 text-teal-100">{ordered.length}</Badge>
+            <Badge className="border-teal-300/20 bg-teal-300/10 text-teal-100">
+              {ordered.length}
+            </Badge>
           </div>
           <div className="mt-4 space-y-2">
             {isLoading ? <p className="text-sm text-slate-400">Loading responses...</p> : null}
-            {!isLoading && !ordered.length ? <p className="text-sm leading-6 text-slate-400">Responses will appear here after people submit your published form.</p> : null}
+            {!isLoading && !ordered.length ? (
+              <p className="text-sm leading-6 text-slate-400">
+                {search
+                  ? "No responses match your search."
+                  : "Responses will appear here after people submit your published form."}
+              </p>
+            ) : null}
             {ordered.map((response, index) => (
-              <button className={`w-full rounded-lg border p-3 text-left transition ${selected?.id === response.id ? "border-teal-300/50 bg-teal-300/10" : "border-white/10 bg-black/24 hover:border-white/20"}`} key={response.id} onClick={() => setSelectedId(response.id)} type="button">
+              <button
+                className={`w-full rounded-lg border p-3 text-left transition ${selected?.id === response.id ? "border-teal-300/50 bg-teal-300/10" : "border-white/10 bg-black/24 hover:border-white/20"}`}
+                key={response.id}
+                onClick={() => setSelectedId(response.id)}
+                type="button"
+              >
                 <div className="flex items-center gap-3">
                   <Users className="size-4 text-teal-200" />
-                  <p className="min-w-0 flex-1 truncate text-sm font-black">{response.respondentEmail ?? `Anonymous #${ordered.length - index}`}</p>
+                  <p className="min-w-0 flex-1 truncate text-sm font-black">
+                    {response.respondentEmail ?? `Anonymous #${ordered.length - index}`}
+                  </p>
                 </div>
-                <p className="mt-2 text-xs text-slate-500">{formatDateTime(response.createdAt)} · {getAnswersForResponse(data, response.id).size} answers</p>
+                <p className="mt-2 text-xs text-slate-500">
+                  {formatDateTime(response.createdAt)} ·{" "}
+                  {getAnswersForResponse(data, response.id).size} answers
+                </p>
               </button>
             ))}
           </div>
@@ -1777,19 +2947,36 @@ function ResponsesSection({ data, fields, isLoading }: { data?: FormResponse; fi
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <h3 className="text-xl font-black">Response Detail</h3>
-              <p className="mt-1 text-sm text-slate-400">{selected ? selected.respondentEmail ?? "Anonymous respondent" : "No response selected"}</p>
+              <p className="mt-1 text-sm text-slate-400">
+                {selected
+                  ? (selected.respondentEmail ?? "Anonymous respondent")
+                  : "No response selected"}
+              </p>
             </div>
-            {selected ? <Badge className="border-white/10 bg-white/10 text-slate-100">{formatDateTime(selected.createdAt)}</Badge> : null}
+            {selected ? (
+              <Badge className="border-white/10 bg-white/10 text-slate-100">
+                {formatDateTime(selected.createdAt)}
+              </Badge>
+            ) : null}
           </div>
           <div className="mt-5 space-y-4">
-            {!selected ? <p className="rounded-lg border border-dashed border-white/15 bg-black/20 p-4 text-sm text-slate-400">Select a submitted response to inspect every answer.</p> : null}
+            {!selected ? (
+              <p className="rounded-lg border border-dashed border-white/15 bg-black/20 p-4 text-sm text-slate-400">
+                Select a submitted response to inspect every answer.
+              </p>
+            ) : null}
             {selected
               ? fields.map((field, index) => (
-                  <div className="rounded-lg border border-white/10 bg-black/24 p-4" key={`${field.id ?? field.label}-${index}`}>
+                  <div
+                    className="rounded-lg border border-white/10 bg-black/24 p-4"
+                    key={`${field.id ?? field.label}-${index}`}
+                  >
                     <p className="text-sm font-bold text-slate-400">Question {index + 1}</p>
                     <p className="mt-1 font-black">{field.label}</p>
                     <p className="mt-4 text-sm font-bold text-slate-400">Answer</p>
-                    <p className="mt-1 whitespace-pre-wrap text-teal-100">{formatAnswer(answers.get(field.id ?? ""))}</p>
+                    <p className="mt-1 whitespace-pre-wrap text-teal-100">
+                      {formatAnswer(answers.get(field.id ?? ""))}
+                    </p>
                   </div>
                 ))
               : null}
@@ -1802,14 +2989,23 @@ function ResponsesSection({ data, fields, isLoading }: { data?: FormResponse; fi
 
 function ApiDocsSection() {
   return (
-    <SectionShell title="API Docs" subtitle="Endpoint explorer for teams connecting PollIq to their stack.">
+    <SectionShell
+      title="API Docs"
+      subtitle="Endpoint explorer for teams connecting PollIq to their stack."
+    >
       <section className="grid gap-5 xl:grid-cols-[0.8fr_1.2fr]">
         <div className="rounded-lg border border-white/10 bg-white/[0.055] p-5">
           <Code2 className="size-7 text-teal-200" />
           <h3 className="mt-4 text-xl font-black">Scalar Docs</h3>
-          <p className="mt-2 text-sm leading-6 text-slate-400">Open the generated API reference from your running backend.</p>
+          <p className="mt-2 text-sm leading-6 text-slate-400">
+            Open the generated API reference from your running backend.
+          </p>
           <Button asChild className="mt-5 bg-white text-[#05070d] hover:bg-teal-100">
-            <a href="http://localhost:8000/docs" rel="noreferrer" target="_blank">
+            <a
+              href={new URL("/docs", env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000").toString()}
+              rel="noreferrer"
+              target="_blank"
+            >
               Open Docs
             </a>
           </Button>
@@ -1824,24 +3020,15 @@ function ApiDocsSection() {
   );
 }
 
-function SettingsSection() {
-  const sections = ["Profile", "Workspace", "Appearance", "Billing", "API Keys"];
-  return (
-    <SectionShell title="Settings" subtitle="Minimal workspace controls grouped by responsibility.">
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-        {sections.map((section) => (
-          <button className="rounded-lg border border-white/10 bg-white/[0.055] p-5 text-left transition hover:-translate-y-1 hover:border-teal-300/35" key={section} type="button">
-            <Settings className="size-5 text-teal-200" />
-            <p className="mt-4 font-black">{section}</p>
-            <p className="mt-2 text-sm leading-6 text-slate-400">Manage {section.toLowerCase()} preferences.</p>
-          </button>
-        ))}
-      </div>
-    </SectionShell>
-  );
-}
-
-function SectionShell({ children, subtitle, title }: { children: ReactNode; subtitle: string; title: string }) {
+function SectionShell({
+  children,
+  subtitle,
+  title,
+}: {
+  children: ReactNode;
+  subtitle: string;
+  title: string;
+}) {
   return (
     <section className="space-y-5">
       <div>
@@ -1850,23 +3037,6 @@ function SectionShell({ children, subtitle, title }: { children: ReactNode; subt
       </div>
       {children}
     </section>
-  );
-}
-
-function MobileNav({ activeSection, onCreate, onSelect }: { activeSection: SectionId; onCreate: () => void; onSelect: (section: SectionId) => void }) {
-  return (
-    <div className="fixed inset-x-3 bottom-3 z-50 lg:hidden">
-      <div className="flex items-center justify-between rounded-lg border border-white/10 bg-black/70 p-2 backdrop-blur-2xl">
-        {navigation.slice(0, 5).map((item) => (
-          <button className={`grid size-10 place-items-center rounded-lg transition ${activeSection === item.id ? "bg-white text-[#05070d]" : "text-slate-400 hover:text-white"}`} key={item.id} onClick={() => onSelect(item.id)} type="button">
-            <item.icon className="size-4" />
-          </button>
-        ))}
-        <button className="grid size-11 place-items-center rounded-lg bg-teal-300 text-[#04201d]" onClick={onCreate} type="button">
-          <Plus className="size-5" />
-        </button>
-      </div>
-    </div>
   );
 }
 
@@ -1886,7 +3056,10 @@ function LoadingState() {
           <div className="h-10 w-64 rounded-lg bg-white/10 shimmer" />
           <div className="mt-6 grid gap-4 md:grid-cols-4">
             {Array.from({ length: 4 }, (_, index) => (
-              <div className="h-32 rounded-lg border border-white/10 bg-white/[0.06] shimmer" key={index} />
+              <div
+                className="h-32 rounded-lg border border-white/10 bg-white/[0.06] shimmer"
+                key={index}
+              />
             ))}
           </div>
           <div className="mt-6 h-80 rounded-lg border border-white/10 bg-white/[0.06] shimmer" />
@@ -1899,23 +3072,13 @@ function LoadingState() {
   );
 }
 
-function renderPreviewControl(field: DraftField) {
-  if (field.type === "TEXTAREA") return <div className="h-24 rounded-md border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-slate-500">{field.placeholder}</div>;
-  if (optionFieldTypes.has(field.type)) {
-    return (
-      <div className="grid gap-2">
-        {(field.config?.options ?? []).map((option) => (
-          <div className="rounded-md border border-white/10 bg-white/[0.04] px-3 py-2 text-sm font-semibold text-slate-300" key={option.value}>{option.label}</div>
-        ))}
-      </div>
-    );
-  }
-  if (field.type === "RATING") return <Progress className="h-2 bg-white/10" value={72} />;
-  return <div className="h-10 rounded-md border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-slate-500">{field.placeholder}</div>;
-}
-
 function StatusBadge({ status }: { status: Status }) {
-  const className = status === "PUBLISHED" ? "border-teal-300/20 bg-teal-300/10 text-teal-100" : status === "ARCHIVED" ? "border-slate-300/20 bg-slate-300/10 text-slate-100" : "border-amber-300/20 bg-amber-300/10 text-amber-100";
+  const className =
+    status === "PUBLISHED"
+      ? "border-teal-300/20 bg-teal-300/10 text-teal-100"
+      : status === "ARCHIVED"
+        ? "border-slate-300/20 bg-slate-300/10 text-slate-100"
+        : "border-amber-300/20 bg-amber-300/10 text-amber-100";
   return <Badge className={className}>{status.toLowerCase()}</Badge>;
 }
 
@@ -1932,12 +3095,25 @@ function SparkLine({ values }: { values: number[] }) {
   return (
     <svg aria-hidden="true" className="h-12 w-24 overflow-visible" viewBox="0 0 84 64">
       <polyline fill="none" points={points} stroke="rgba(20,184,166,0.18)" strokeWidth="8" />
-      <polyline fill="none" points={points} stroke="#2DD4BF" strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" />
+      <polyline
+        fill="none"
+        points={points}
+        stroke="#2DD4BF"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="3"
+      />
     </svg>
   );
 }
 
-function ResponseTrendGraph({ data, peak }: { data: Array<{ label: string; count: number }>; peak: number }) {
+function ResponseTrendGraph({
+  data,
+  peak,
+}: {
+  data: Array<{ label: string; count: number }>;
+  peak: number;
+}) {
   const points = data.map((item, index) => {
     const x = data.length === 1 ? 300 : 28 + (index * 584) / (data.length - 1);
     const y = 196 - (item.count / peak) * 150;
@@ -1947,27 +3123,64 @@ function ResponseTrendGraph({ data, peak }: { data: Array<{ label: string; count
   return (
     <div className="flex h-full flex-col">
       <svg className="min-h-0 flex-1" viewBox="0 0 640 220">
-        {[50, 100, 150, 200].map((y) => <path d={`M24 ${y} H616`} key={y} stroke="rgba(255,255,255,0.08)" />)}
-        <polyline fill="none" points={points.join(" ")} stroke="rgba(45,212,191,0.2)" strokeLinecap="round" strokeLinejoin="round" strokeWidth="12" />
-        <polyline fill="none" points={points.join(" ")} stroke="#2DD4BF" strokeLinecap="round" strokeLinejoin="round" strokeWidth="4" />
+        {[50, 100, 150, 200].map((y) => (
+          <path d={`M24 ${y} H616`} key={y} stroke="rgba(255,255,255,0.08)" />
+        ))}
+        <polyline
+          fill="none"
+          points={points.join(" ")}
+          stroke="rgba(45,212,191,0.2)"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth="12"
+        />
+        <polyline
+          fill="none"
+          points={points.join(" ")}
+          stroke="#2DD4BF"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth="4"
+        />
         {data.map((item, index) => {
           const x = data.length === 1 ? 300 : 28 + (index * 584) / (data.length - 1);
           const y = 196 - (item.count / peak) * 150;
-          return <circle cx={x} cy={y} fill="#05070d" key={`${item.label}-${index}`} r="6" stroke="#2DD4BF" strokeWidth="3" />;
+          return (
+            <circle
+              cx={x}
+              cy={y}
+              fill="#05070d"
+              key={`${item.label}-${index}`}
+              r="6"
+              stroke="#2DD4BF"
+              strokeWidth="3"
+            />
+          );
         })}
       </svg>
       <div className="grid grid-cols-7 gap-2 text-[11px] font-semibold text-slate-500">
-        {data.map((item) => <span className="truncate" key={item.label}>{item.label}</span>)}
+        {data.map((item) => (
+          <span className="truncate" key={item.label}>
+            {item.label}
+          </span>
+        ))}
       </div>
     </div>
   );
 }
 
-function QuestionCoverage({ data }: { data: Array<{ label: string; count: number; rate: number }> }) {
+function QuestionCoverage({
+  data,
+}: {
+  data: Array<{ label: string; count: number; rate: number }>;
+}) {
   return (
     <div className="mt-6 space-y-3">
       {data.map((item, index) => (
-        <div className="rounded-lg border border-white/10 bg-black/24 p-3" key={`${item.label}-${index}`}>
+        <div
+          className="rounded-lg border border-white/10 bg-black/24 p-3"
+          key={`${item.label}-${index}`}
+        >
           <div className="flex items-center justify-between gap-3">
             <p className="truncate text-sm font-black">{item.label}</p>
             <span className="text-xs font-black text-teal-100">{item.rate}%</span>
@@ -2005,51 +3218,36 @@ function ResponseMix({ data, fields }: { data?: FormResponse; fields: DraftField
   );
 }
 
-function AdvancedAnalyticsStrip({ responseData, totals }: { responseData?: FormResponse; totals: ReturnType<typeof getTotals> }) {
-  const responses = responseData?.responses.length ?? totals.responses;
-  const completionRate = Math.max(0, Math.min(98, totals.completion));
-  const abandonmentRate = Math.max(2, 100 - completionRate);
-  const avgTime = responses ? `${Math.max(42, Math.min(210, 96 - responses * 2))}s` : "1m 28s";
-  const devices = [
-    { label: "Mobile", value: 48 },
-    { label: "Desktop", value: 38 },
-    { label: "Tablet", value: 14 },
-  ];
-
+function AdvancedAnalyticsStrip({
+  responseData,
+  totals,
+}: {
+  responseData?: FormResponse;
+  totals: ReturnType<typeof getTotals>;
+}) {
   return (
-    <section className="grid gap-4 lg:grid-cols-[repeat(3,minmax(0,1fr))_1.2fr]">
+    <section className="grid gap-4 sm:grid-cols-3">
       {[
-        ["Completion", `${completionRate}%`, "Submissions that reached the end"],
-        ["Abandonment", `${abandonmentRate}%`, "Visitors who left mid-flow"],
-        ["Avg. time", avgTime, "Estimated completion speed"],
-      ].map(([label, value, hint]) => (
+        ["Selected form responses", responseData?.responses.length ?? 0],
+        ["Workspace responses", totals.responses],
+        ["Published forms", totals.published],
+      ].map(([label, value]) => (
         <div className="rounded-lg border border-white/10 bg-white/[0.055] p-4" key={label}>
-          <p className="text-sm font-semibold text-slate-400">{label}</p>
-          <p className="mt-2 text-3xl font-black">{value}</p>
-          <p className="mt-2 text-xs leading-5 text-slate-500">{hint}</p>
+          <p className="text-sm text-slate-400">{label}</p>
+          <p className="mt-2 text-3xl font-bold">{value}</p>
         </div>
       ))}
-      <div className="rounded-lg border border-white/10 bg-white/[0.055] p-4">
-        <p className="text-sm font-semibold text-slate-400">Device breakdown</p>
-        <div className="mt-4 space-y-3">
-          {devices.map((device) => (
-            <div key={device.label}>
-              <div className="flex items-center justify-between text-xs font-bold text-slate-300">
-                <span>{device.label}</span>
-                <span>{device.value}%</span>
-              </div>
-              <div className="mt-1 h-2 overflow-hidden rounded-full bg-white/10">
-                <div className="h-full rounded-full bg-gradient-to-r from-teal-300 to-fuchsia-300" style={{ width: `${device.value}%` }} />
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
     </section>
   );
 }
 
-function HeatmapGrid({ fields, responseData }: { fields: DraftField[]; responseData?: FormResponse }) {
+function HeatmapGrid({
+  fields,
+  responseData,
+}: {
+  fields: DraftField[];
+  responseData?: FormResponse;
+}) {
   const total = responseData?.responses.length ?? 0;
   if (!fields.length) return null;
 
@@ -2058,16 +3256,23 @@ function HeatmapGrid({ fields, responseData }: { fields: DraftField[]; responseD
       <div className="flex items-center justify-between gap-3">
         <div>
           <h4 className="font-black">Response heatmap</h4>
-          <p className="mt-1 text-xs text-slate-500">Question engagement intensity across the selected form.</p>
+          <p className="mt-1 text-xs text-slate-500">
+            Percentage of submitted responses that answered each question.
+          </p>
         </div>
-        <Badge className="border-teal-300/20 bg-teal-300/10 text-teal-100">{total} sessions</Badge>
+        <Badge className="border-teal-300/20 bg-teal-300/10 text-teal-100">{total} responses</Badge>
       </div>
       <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-6">
         {fields.map((field, index) => {
-          const count = responseData?.answers.filter((answer) => answer.fieldId === field.id).length ?? 0;
-          const rate = total ? Math.round((count / total) * 100) : Math.max(24, 88 - index * 9);
+          const count =
+            responseData?.answers.filter((answer) => answer.fieldId === field.id).length ?? 0;
+          const rate = total ? Math.round((count / total) * 100) : 0;
           return (
-            <div className="rounded-md border border-white/10 p-3" key={`${field.label}-${index}`} style={{ background: `rgba(45, 212, 191, ${Math.max(0.08, rate / 180)})` }}>
+            <div
+              className="rounded-md border border-white/10 p-3"
+              key={`${field.label}-${index}`}
+              style={{ background: `rgba(45, 212, 191, ${Math.max(0.08, rate / 180)})` }}
+            >
               <p className="truncate text-xs font-black">Q{index + 1}</p>
               <p className="mt-2 text-lg font-black">{rate}%</p>
               <p className="mt-1 truncate text-[11px] text-slate-300">{field.label}</p>
@@ -2079,17 +3284,49 @@ function HeatmapGrid({ fields, responseData }: { fields: DraftField[]; responseD
   );
 }
 
-function updateFieldAt(index: number, field: DraftField, setDraft: Dispatch<SetStateAction<DraftForm>>) {
-  setDraft((current) => ({ ...current, fields: current.fields.map((item, itemIndex) => (itemIndex === index ? { ...field, order: itemIndex } : item)) }));
+function updateFieldAt(
+  index: number,
+  field: DraftField,
+  setDraft: Dispatch<SetStateAction<DraftForm>>,
+) {
+  setDraft((current) => ({
+    ...current,
+    fields: current.fields.map((item, itemIndex) =>
+      itemIndex === index ? { ...field, order: itemIndex } : item,
+    ),
+  }));
 }
 
-function removeFieldAt(index: number, setDraft: Dispatch<SetStateAction<DraftForm>>, setSelectedFieldIndex: (index: number) => void) {
+function removeFieldAt(
+  index: number,
+  setDraft: Dispatch<SetStateAction<DraftForm>>,
+  setSelectedFieldIndex: (index: number) => void,
+) {
   setDraft((current) => {
     if (current.fields.length === 1) {
       toast.error("A form needs at least one field");
       return current;
     }
-    const fields = current.fields.filter((_, itemIndex) => itemIndex !== index).map((field, order) => ({ ...field, order }));
+    if (current.fields.some((field) => field.config?.condition?.fieldOrder === index)) {
+      toast.error("Remove the conditional rules that depend on this question before deleting it.");
+      return current;
+    }
+    const fields = current.fields
+      .filter((_, itemIndex) => itemIndex !== index)
+      .map((field, order) => ({
+        ...field,
+        order,
+        config:
+          field.config?.condition && field.config.condition.fieldOrder > index
+            ? {
+                ...field.config,
+                condition: {
+                  ...field.config.condition,
+                  fieldOrder: field.config.condition.fieldOrder - 1,
+                },
+              }
+            : field.config,
+      }));
     setSelectedFieldIndex(Math.max(0, index - 1));
     return { ...current, fields };
   });
@@ -2099,7 +3336,13 @@ function normalizeFieldForType(field: DraftField, type: FieldType): DraftField {
   return {
     ...field,
     type,
-    config: optionFieldTypes.has(type) ? field.config?.options?.length ? field.config : { options: [{ label: "Option 1", value: "option-1" }] } : type === "RATING" ? { min: 1, max: 5, step: 1 } : undefined,
+    config: optionFieldTypes.has(type)
+      ? field.config?.options?.length
+        ? field.config
+        : { options: [{ label: "Option 1", value: "option-1" }] }
+      : type === "RATING"
+        ? { min: 1, max: 5, step: 1 }
+        : undefined,
   };
 }
 
@@ -2119,6 +3362,7 @@ function toPayload(draft: DraftForm) {
     status: draft.status,
     themeSlug: draft.themeSlug ?? resolveTheme("glass").key,
     fields: draft.fields.map((field, order) => ({
+      id: field.id,
       type: field.type,
       label: field.label.trim() || `Question ${order + 1}`,
       description: field.description?.trim() || undefined,
@@ -2139,16 +3383,30 @@ function cleanConfig(field: DraftField, branding?: DraftBranding) {
   if (optionFieldTypes.has(field.type)) {
     return {
       ...baseConfig,
-      options: (field.config?.options ?? []).filter((option) => option.label.trim()).map((option) => ({ label: option.label.trim(), value: slugify(option.value || option.label) || "option" })),
+      options: (field.config?.options ?? [])
+        .filter((option) => option.label.trim())
+        .map((option) => ({
+          label: option.label.trim(),
+          value: slugify(option.value || option.label) || "option",
+        })),
     };
   }
-  if (field.type === "RATING") return { ...baseConfig, min: field.config?.min ?? 1, max: field.config?.max ?? 5, step: field.config?.step ?? 1 };
+  if (field.type === "RATING")
+    return {
+      ...baseConfig,
+      min: field.config?.min ?? 1,
+      max: field.config?.max ?? 5,
+      step: field.config?.step ?? 1,
+    };
   return Object.keys(baseConfig).length ? baseConfig : undefined;
 }
 
 function getBrandingFromFields(fields: Array<{ config?: unknown }>): DraftBranding {
   const firstConfig = fields[0]?.config;
-  const branding = firstConfig && typeof firstConfig === "object" && "branding" in firstConfig ? (firstConfig as { branding?: Partial<DraftBranding> }).branding : undefined;
+  const branding =
+    firstConfig && typeof firstConfig === "object" && "branding" in firstConfig
+      ? (firstConfig as { branding?: Partial<DraftBranding> }).branding
+      : undefined;
   return {
     logoUrl: typeof branding?.logoUrl === "string" ? branding.logoUrl : "",
     fontFamily: typeof branding?.fontFamily === "string" ? branding.fontFamily : "Geist Sans",
@@ -2159,7 +3417,8 @@ function getBrandingFromFields(fields: Array<{ config?: unknown }>): DraftBrandi
 function getConditionValues(field?: DraftField) {
   if (!field) return [];
   if (field.type === "CHECKBOX") return ["true", "false"];
-  if (optionFieldTypes.has(field.type)) return (field.config?.options ?? []).map((option) => option.value || option.label);
+  if (optionFieldTypes.has(field.type))
+    return (field.config?.options ?? []).map((option) => option.value || option.label);
   if (field.type === "RATING") {
     const max = field.config?.max ?? 5;
     return Array.from({ length: max }, (_, index) => String(index + 1));
@@ -2168,14 +3427,48 @@ function getConditionValues(field?: DraftField) {
 }
 
 function hasValidDraft(draft: DraftForm) {
-  return Boolean(draft.title.trim() && slugify(draft.slug) && draft.fields.length && draft.fields.every((field) => field.label.trim()));
+  return Boolean(
+    draft.title.trim() &&
+    slugify(draft.slug) &&
+    draft.fields.length &&
+    draft.fields.every((field) => {
+      if (!field.label.trim()) return false;
+      if (optionFieldTypes.has(field.type)) {
+        const options = field.config?.options ?? [];
+        const values = options.map((option) => slugify(option.value || option.label));
+        if (
+          !options.length ||
+          options.some((option) => !option.label.trim()) ||
+          values.some((value) => !value) ||
+          new Set(values).size !== values.length
+        )
+          return false;
+      }
+      if (field.type === "RATING") {
+        const min = field.config?.min ?? 1;
+        const max = field.config?.max ?? 5;
+        if (!Number.isInteger(min) || !Number.isInteger(max) || min < 1 || max > 10 || min > max)
+          return false;
+      }
+      return (
+        !field.config?.maxLength ||
+        (Number.isInteger(field.config.maxLength) && field.config.maxLength > 0)
+      );
+    }),
+  );
 }
 
 function getTotals(forms: FormSummary[]) {
   const views = forms.reduce((sum, item) => sum + (item.views ?? 0), 0);
   const responses = forms.reduce((sum, item) => sum + (item.responseCount ?? 0), 0);
   const published = forms.filter((item) => item.status === "PUBLISHED").length;
-  return { views, responses, published, forms: forms.length, completion: forms.length ? Math.min(92, 58 + published * 5) : 68 };
+  return {
+    views,
+    responses,
+    published,
+    forms: forms.length,
+    completion: views ? Math.min(100, Math.round((responses / views) * 100)) : 0,
+  };
 }
 
 function buildResponseTrend(data?: FormResponse) {
@@ -2184,7 +3477,11 @@ function buildResponseTrend(data?: FormResponse) {
     const date = new Date(today);
     date.setDate(today.getDate() - (6 - index));
     const key = date.toISOString().slice(0, 10);
-    return { key, label: date.toLocaleDateString("en", { month: "short", day: "numeric" }), count: 0 };
+    return {
+      key,
+      label: date.toLocaleDateString("en", { month: "short", day: "numeric" }),
+      count: 0,
+    };
   });
   const counts = new Map(days.map((day) => [day.key, day.count]));
 
@@ -2238,16 +3535,32 @@ function formatAnswer(value?: string) {
 }
 
 function formatDateTime(value: Date | string) {
-  return new Intl.DateTimeFormat("en", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }).format(new Date(value));
+  return new Intl.DateTimeFormat("en", {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(new Date(value));
 }
 
 function formatCompactNumber(value: number) {
-  return new Intl.NumberFormat("en", { notation: "compact", maximumFractionDigits: 1 }).format(value);
+  return new Intl.NumberFormat("en", { notation: "compact", maximumFractionDigits: 1 }).format(
+    value,
+  );
 }
 
 function resolveTheme(value: string): ThemeCard {
   const normalized = value.toLowerCase();
-  return themeCollections.find((themeCard) => themeCard.key === normalized || themeCard.name.toLowerCase() === normalized || themeCard.shortName.toLowerCase() === normalized || themeCard.name.toLowerCase().includes(normalized)) ?? themeCollections[0]!;
+  return (
+    themeCollections.find(
+      (theme) =>
+        theme.key === normalized ||
+        theme.name.toLowerCase() === normalized ||
+        theme.shortName.toLowerCase() === normalized,
+    ) ??
+    themeCollections.find((theme) => theme.name.toLowerCase().includes(normalized)) ??
+    themeCollections.find((theme) => theme.key === "glass")!
+  );
 }
 
 function samplePrompt(themeKey: ThemeKey) {
@@ -2274,5 +3587,10 @@ function samplePrompt(themeKey: ThemeKey) {
 }
 
 function slugify(value: string) {
-  return value.trim().toLowerCase().replace(/[^a-z0-9-_]+/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "");
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9-_]+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "");
 }

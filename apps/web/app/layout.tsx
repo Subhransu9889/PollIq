@@ -13,8 +13,9 @@ const geistMono = localFont({
 });
 
 export const metadata: Metadata = {
-  title: "PollIq | AI-powered immersive forms",
-  description: "Build cinematic, interactive forms your audience actually enjoys filling.",
+  title: "PollIQ | Forms with a little more you",
+  description:
+    "Create beautiful forms, collect thoughtful answers, and make a connection. Build, customize, and share with PollIQ.",
 };
 
 export default function RootLayout({

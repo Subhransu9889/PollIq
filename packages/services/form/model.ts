@@ -16,7 +16,7 @@ export const formVisibilitySchema = z.enum(["PUBLIC", "UNLISTED", "PRIVATE"]);
 export const formStatusSchema = z.enum(["DRAFT", "PUBLISHED", "ARCHIVED"]);
 
 export const fieldOptionSchema = z.object({
-  label: z.string().min(1),
+  label: z.string().trim().min(1).max(1000),
   value: z.string().min(1),
 });
 
@@ -28,7 +28,10 @@ export const fieldConfigSchema = z
     options: z.array(fieldOptionSchema).optional(),
     min: z.number().optional(),
     max: z.number().optional(),
-    step: z.number().optional(),
+    step: z.number().positive().optional(),
+    condition: z
+      .object({ fieldOrder: z.number().int().nonnegative(), equals: z.string() })
+      .optional(),
     minLength: z.number().int().positive().optional(),
     maxLength: z.number().int().positive().optional(),
     pattern: z.string().optional(),
@@ -50,7 +53,7 @@ export const answerValueSchema = z.union([
 export const createFormFieldInput = z.object({
   formId: z.string().uuid(),
   type: fieldTypeSchema,
-  label: z.string().min(1),
+  label: z.string().trim().min(1).max(1000),
   description: z.string().optional(),
   placeholder: z.string().optional(),
   required: z.boolean().default(false),
@@ -63,14 +66,21 @@ export const updateFormFieldInput = createFormFieldInput.partial().extend({
 });
 
 export const createFormInput = z.object({
-  title: z.string().min(1).max(255),
+  title: z.string().trim().min(1).max(255),
   description: z.string().optional(),
-  slug: z.string().min(1).max(255).regex(/^[a-zA-Z0-9-_]+$/),
+  slug: z
+    .string()
+    .min(1)
+    .max(255)
+    .regex(/^[a-zA-Z0-9-_]+$/),
   visibility: formVisibilitySchema.default("PRIVATE"),
   status: formStatusSchema.default("DRAFT"),
   themeId: z.string().uuid().optional(),
   themeSlug: z.string().min(1).max(64).optional(),
-  fields: z.array(createFormFieldInput.omit({ formId: true })).min(1),
+  fields: z
+    .array(createFormFieldInput.omit({ formId: true }).extend({ id: z.string().uuid().optional() }))
+    .min(1)
+    .max(100),
 });
 
 export const updateFormInput = createFormInput.partial().extend({
@@ -80,12 +90,14 @@ export const updateFormInput = createFormInput.partial().extend({
 export const submitResponseInput = z.object({
   formSlug: z.string().min(1),
   respondentEmail: z.string().email().optional(),
-  answers: z.array(
-    z.object({
-      fieldId: z.string().uuid(),
-      value: answerValueSchema,
-    }),
-  ).min(1),
+  answers: z
+    .array(
+      z.object({
+        fieldId: z.string().uuid(),
+        value: answerValueSchema,
+      }),
+    )
+    .max(100),
 });
 
 export const formListQueryInput = z.object({

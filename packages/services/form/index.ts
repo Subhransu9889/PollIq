@@ -1,4 +1,5 @@
-import { db, eq, and, inArray } from "@repo/database";
+import { validateAnswers } from "./validation";
+import { db, eq, and, inArray, sql } from "@repo/database";
 import { formsTable } from "@repo/database/models/form";
 import { formFieldsTable } from "@repo/database/models/form-fields";
 import { responsesTable } from "@repo/database/models/responses";
@@ -134,7 +135,8 @@ class FormService {
     const existing = await db.select().from(themesTable).where(eq(themesTable.slug, slug)).limit(1);
     if (existing[0]) return existing[0].id;
 
-    const preset = this.themePresets[slug as keyof typeof this.themePresets] ?? this.themePresets.glass;
+    const preset =
+      this.themePresets[slug as keyof typeof this.themePresets] ?? this.themePresets.glass;
     const created = await db
       .insert(themesTable)
       .values({
@@ -153,7 +155,11 @@ class FormService {
 
   private async attachTheme<T extends { themeId?: string | null }>(form: T) {
     if (!form.themeId) return { ...form, theme: null };
-    const theme = await db.select().from(themesTable).where(eq(themesTable.id, form.themeId)).limit(1);
+    const theme = await db
+      .select()
+      .from(themesTable)
+      .where(eq(themesTable.id, form.themeId))
+      .limit(1);
     return { ...form, theme: theme[0] ?? null };
   }
 
@@ -162,82 +168,101 @@ class FormService {
     const { fields, themeSlug, ...formData } = input;
     const themeId = await this.resolveThemeId(themeSlug, formData.themeId);
 
-    const formResult = await db
-      .insert(formsTable)
-      .values({
-        ...formData,
-        themeId,
-        creatorId: payload.creatorId,
-      })
-      .returning({ id: formsTable.id });
-
-    const formId = formResult[0]?.id;
-    if (!formId) {
-      throw new Error("Failed to create form");
-    }
-
-    const fieldRecords = fields.map((field, index) => ({
-      ...field,
-      formId,
-      order: field.order ?? index,
-    }));
-
-    if (fieldRecords.length) {
-      await db.insert(formFieldsTable).values(fieldRecords);
-    }
-
-    return { id: formId };
+    return db.transaction(async (tx) => {
+      const [form] = await tx
+        .insert(formsTable)
+        .values({ ...formData, themeId, creatorId: payload.creatorId })
+        .returning({ id: formsTable.id });
+      if (!form) throw new Error("Failed to create form");
+      await tx
+        .insert(formFieldsTable)
+        .values(
+          fields.map(({ id: _id, ...field }, index) => ({
+            ...field,
+            formId: form.id,
+            order: index,
+          })),
+        );
+      return { id: form.id };
+    });
   }
 
   public async updateForm(payload: UpdateFormInputType & { creatorId: string }) {
-    const input = await updateFormInput.parseAsync(payload);
-    const { id, fields, themeSlug, ...formUpdates } = input;
-
-    if (!id) {
-      throw new Error("Form id is required");
-    }
-
+    const { id, fields, themeSlug, ...formUpdates } = await updateFormInput.parseAsync(payload);
     await this.verifyOwnership(id, payload.creatorId);
     const themeId = await this.resolveThemeId(themeSlug, formUpdates.themeId);
     const updates = themeId ? { ...formUpdates, themeId } : formUpdates;
-
-    if (Object.keys(updates).length) {
-      await db
-        .update(formsTable)
-        .set(updates)
-        .where(eq(formsTable.id, id));
-    }
-
-    if (fields) {
-      await db.delete(formFieldsTable).where(eq(formFieldsTable.formId, id));
-      const fieldRecords = fields.map((field, index) => ({
-        ...field,
-        formId: id,
-        order: field.order ?? index,
-      }));
-      if (fieldRecords.length) {
-        await db.insert(formFieldsTable).values(fieldRecords);
+    return db.transaction(async (tx) => {
+      // Serialize edits and submissions so schema changes cannot race an answer write.
+      await tx
+        .select({ id: formsTable.id })
+        .from(formsTable)
+        .where(eq(formsTable.id, id))
+        .for("update");
+      if (Object.keys(updates).length)
+        await tx.update(formsTable).set(updates).where(eq(formsTable.id, id));
+      if (fields) {
+        const existing = await tx
+          .select()
+          .from(formFieldsTable)
+          .where(eq(formFieldsTable.formId, id));
+        const existingIds = new Set(existing.map((field) => field.id));
+        const incomingIds = fields.flatMap((field) => (field.id ? [field.id] : []));
+        if (
+          new Set(incomingIds).size !== incomingIds.length ||
+          incomingIds.some((fieldId) => !existingIds.has(fieldId))
+        )
+          throw new Error("Invalid question identifiers");
+        const removed = existing
+          .filter((field) => !incomingIds.includes(field.id))
+          .map((field) => field.id);
+        const changedTypes = fields
+          .filter(
+            (field) =>
+              field.id && existing.some((old) => old.id === field.id && old.type !== field.type),
+          )
+          .map((field) => field.id!);
+        const affected = [...removed, ...changedTypes];
+        if (affected.length) {
+          const [answer] = await tx
+            .select({ id: responseAnswersTable.id })
+            .from(responseAnswersTable)
+            .where(inArray(responseAnswersTable.fieldId, affected))
+            .limit(1);
+          if (answer)
+            throw new Error(
+              "Questions with responses cannot be removed or change type. Create a new form instead.",
+            );
+        }
+        if (removed.length)
+          await tx.delete(formFieldsTable).where(inArray(formFieldsTable.id, removed));
+        for (const [order, field] of fields.entries()) {
+          const { id: fieldId, ...data } = field;
+          if (fieldId)
+            await tx
+              .update(formFieldsTable)
+              .set({ ...data, order })
+              .where(and(eq(formFieldsTable.id, fieldId), eq(formFieldsTable.formId, id)));
+          else await tx.insert(formFieldsTable).values({ ...data, order, formId: id });
+        }
       }
-    }
-
-    return { id };
+      return { id };
+    });
   }
 
   public async publishForm(formId: string, creatorId: string) {
-    await this.verifyOwnership(formId, creatorId);
-    await db
-      .update(formsTable)
-      .set({ status: "PUBLISHED" })
-      .where(eq(formsTable.id, formId));
+    const form = await this.verifyOwnership(formId, creatorId);
+    if (form.visibility === "PRIVATE")
+      throw new Error("Choose Public or Unlisted visibility before publishing");
+    const fields = await this.getFormFields(formId);
+    if (!fields.length) throw new Error("Add a question before publishing");
+    await db.update(formsTable).set({ status: "PUBLISHED" }).where(eq(formsTable.id, formId));
     return { id: formId };
   }
 
   public async unpublishForm(formId: string, creatorId: string) {
     await this.verifyOwnership(formId, creatorId);
-    await db
-      .update(formsTable)
-      .set({ status: "DRAFT" })
-      .where(eq(formsTable.id, formId));
+    await db.update(formsTable).set({ status: "DRAFT" }).where(eq(formsTable.id, formId));
     return { id: formId };
   }
 
@@ -289,26 +314,48 @@ class FormService {
       throw new Error("Field id is required");
     }
 
-    const fieldResults = await db.select().from(formFieldsTable).where(eq(formFieldsTable.id, input.id)).limit(1);
+    const fieldResults = await db
+      .select()
+      .from(formFieldsTable)
+      .where(eq(formFieldsTable.id, input.id))
+      .limit(1);
     if (!fieldResults[0]) {
       throw new Error("Field not found");
     }
     await this.verifyOwnership(fieldResults[0].formId, payload.creatorId);
 
-    await db
-      .update(formFieldsTable)
-      .set(input)
-      .where(eq(formFieldsTable.id, input.id));
+    const { formId: _formId, id: _id, ...updates } = input;
+    if (input.formId && input.formId !== fieldResults[0].formId)
+      throw new Error("Cannot move a question to another form");
+    if (input.type && input.type !== fieldResults[0].type) {
+      const [answer] = await db
+        .select({ id: responseAnswersTable.id })
+        .from(responseAnswersTable)
+        .where(eq(responseAnswersTable.fieldId, input.id))
+        .limit(1);
+      if (answer) throw new Error("Cannot change the type of a question with responses");
+    }
+    await db.update(formFieldsTable).set(updates).where(eq(formFieldsTable.id, input.id));
 
     return { id: input.id };
   }
 
   public async deleteField(fieldId: string, creatorId: string) {
-    const fieldResults = await db.select().from(formFieldsTable).where(eq(formFieldsTable.id, fieldId)).limit(1);
+    const fieldResults = await db
+      .select()
+      .from(formFieldsTable)
+      .where(eq(formFieldsTable.id, fieldId))
+      .limit(1);
     if (!fieldResults[0]) {
       throw new Error("Field not found");
     }
     await this.verifyOwnership(fieldResults[0].formId, creatorId);
+    const [answer] = await db
+      .select({ id: responseAnswersTable.id })
+      .from(responseAnswersTable)
+      .where(eq(responseAnswersTable.fieldId, fieldId))
+      .limit(1);
+    if (answer) throw new Error("Cannot delete a question with responses");
     await db.delete(formFieldsTable).where(eq(formFieldsTable.id, fieldId));
     return { id: fieldId };
   }
@@ -319,69 +366,43 @@ class FormService {
     return JSON.stringify(value);
   }
 
-  private ensureRequiredAnswers(fields: Array<{ id: string; label: string; required: boolean }>, answers: Array<{ fieldId: string; value: AnswerValueType }>) {
-    const missing = fields.find((field) => {
-      if (!field.required) {
-        return false;
-      }
-      const answer = answers.find((item) => item.fieldId === field.id);
-      if (!answer) {
-        return true;
-      }
-      const value = answer.value;
-      if (value === null || value === undefined) {
-        return true;
-      }
-      if (typeof value === "string" && value.trim() === "") {
-        return true;
-      }
-      if (Array.isArray(value) && value.length === 0) {
-        return true;
-      }
-      return false;
-    });
-
-    if (missing) {
-      throw new Error(`Missing required answer for field: ${missing.label}`);
-    }
-  }
-
   public async submitResponse(payload: SubmitResponseInputType) {
     const input = await submitResponseInput.parseAsync(payload);
-    const form = await this.getFormBySlug(input.formSlug);
-    if (form.status !== "PUBLISHED" || form.visibility === "PRIVATE") {
-      throw new Error("Form not available for submission");
-    }
-
-    const fields = await this.getFormFields(form.id);
-    this.ensureRequiredAnswers(fields, input.answers);
-
-    const responseResult = await db
-      .insert(responsesTable)
-      .values({
-        formId: form.id,
-        respondentEmail: input.respondentEmail,
-      })
-      .returning({ id: responsesTable.id });
-
-    const responseId = responseResult[0]?.id;
-    if (!responseId) {
-      throw new Error("Failed to record response");
-    }
-
-    const answers = input.answers.map((answer) => ({
-      responseId,
-      fieldId: answer.fieldId,
-      value: this.serializeAnswerValue(answer.value),
-    }));
-
-    await db.insert(responseAnswersTable).values(answers);
-    await db
-      .update(formsTable)
-      .set({ responseCount: (form.responseCount ?? 0) + 1 })
-      .where(eq(formsTable.id, form.id));
-
-    return { responseId };
+    return db.transaction(async (tx) => {
+      const [form] = await tx
+        .select()
+        .from(formsTable)
+        .where(eq(formsTable.slug, input.formSlug))
+        .for("update");
+      if (!form || form.status !== "PUBLISHED" || form.visibility === "PRIVATE")
+        throw new Error("Form not available for submission");
+      const fields = await tx
+        .select()
+        .from(formFieldsTable)
+        .where(eq(formFieldsTable.formId, form.id))
+        .orderBy(formFieldsTable.order);
+      const validated = validateAnswers(fields, input.answers);
+      const [response] = await tx
+        .insert(responsesTable)
+        .values({ formId: form.id, respondentEmail: input.respondentEmail })
+        .returning({ id: responsesTable.id });
+      if (!response) throw new Error("Failed to record response");
+      if (validated.length)
+        await tx
+          .insert(responseAnswersTable)
+          .values(
+            validated.map((answer) => ({
+              responseId: response.id,
+              fieldId: answer.fieldId,
+              value: this.serializeAnswerValue(answer.value),
+            })),
+          );
+      await tx
+        .update(formsTable)
+        .set({ responseCount: sql`coalesce(${formsTable.responseCount}, 0) + 1` })
+        .where(eq(formsTable.id, form.id));
+      return { responseId: response.id };
+    });
   }
 
   public async getResponses(formId: string, creatorId: string) {

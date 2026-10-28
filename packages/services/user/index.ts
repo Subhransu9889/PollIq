@@ -79,6 +79,10 @@ class UserService {
     }
 
     public async signInUserWithEmailAndPassword(payload: SignInUserWithEmailAndPasswordType) {
+        if(!payload){
+            throw new Error("Invalid Input");
+        }
+
         const { email, password } = await signInUserWithEmailAndPasswordInput.parseAsync(payload);
 
         //check the user have a account or not

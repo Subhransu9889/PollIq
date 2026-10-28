@@ -24,13 +24,14 @@ import {
 const TAGS = ["Forms"];
 const getPath = generatePath("/forms");
 
-async function getAuthenticatedUserId(ctx: any) {
+async function getAuthenticatedUserId(ctx: import("../../context").Context) {
   const token = getAuthenticationCookie(ctx);
   if (typeof token !== "string") {
     throw new Error("Unauthorized");
   }
   const user = await userService.verifyUserToken(token);
-  return user.id as string;
+  if (!user.id) throw new Error("Unauthorized");
+  return user.id;
 }
 
 export const formRouter = router({
